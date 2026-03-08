@@ -25,3 +25,8 @@ bool OilTempSensor::read(float& tempC) {
   tempC = readCelsius();
   return initialized_ && !isnan(tempC);
 }
+
+uint8_t OilTempSensor::readFault() {
+  if (!initialized_ || !rtd) return 0;
+  return rtd->readFault();
+}

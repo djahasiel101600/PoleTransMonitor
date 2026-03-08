@@ -10,7 +10,12 @@ void BackendClient::begin(const char* baseUrl, int transformerId) {
 }
 
 bool BackendClient::postReading(const ReadingPayload& payload) {
-  if (WiFi.status() != WL_CONNECTED) return false;
+  int code = postReadingWithStatus(payload);
+  return code >= 200 && code < 300;
+}
+
+int BackendClient::postReadingWithStatus(const ReadingPayload& payload) {
+  if (WiFi.status() != WL_CONNECTED) return -1;
 
   HTTPClient http;
   char url[192];
@@ -33,5 +38,5 @@ bool BackendClient::postReading(const ReadingPayload& payload) {
 
   int code = http.POST((uint8_t*)body, len);
   http.end();
-  return code >= 200 && code < 300;
+  return code;
 }

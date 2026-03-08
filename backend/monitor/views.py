@@ -1,3 +1,5 @@
+import logging
+
 from rest_framework import viewsets, filters, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -6,6 +8,8 @@ from django.utils import timezone
 from datetime import timedelta
 
 from .models import Transformer, Reading, Alert
+
+logger = logging.getLogger(__name__)
 from .serializers import (
     TransformerSerializer,
     ReadingSerializer,
@@ -34,7 +38,13 @@ class ReadingViewSet(viewsets.ModelViewSet):
 
     def create(self, request, *args, **kwargs):
         serializer = ReadingCreateSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
+        if not serializer.is_valid():
+            logger.warning(
+                "Reading create validation failed: %s | data=%s",
+                serializer.errors,
+                request.data,
+            )
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
         reading = serializer.save()
         if reading.condition != "normal":
             Alert.objects.create(
@@ -72,3 +82,16 @@ class AlertViewSet(viewsets.ModelViewSet):
         alert.acknowledged = True
         alert.save()
         return Response(AlertSerializer(alert).data)
+
+    @action(detail=False, methods=["post"])
+    def acknowledge_all(self, request):
+        transformer_id = request.data.get("transformer") or request.query_params.get("transformer")
+        if not transformer_id:
+            return Response(
+                {"error": "transformer id required"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        count, _ = Alert.objects.filter(
+            transformer_id=transformer_id, acknowledged=False
+        ).update(acknowledged=True)
+        return Response({"acknowledged": count})

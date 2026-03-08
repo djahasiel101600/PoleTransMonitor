@@ -23,10 +23,10 @@ const char* ThresholdEvaluator::evaluate(const SensorData& data) {
     else if (data.oilTemp > 75.0f) oilCond = COND_HEAVY_PEAK_LOAD;
   }
 
-  // Voltage: ±7% Normal, outside ±7% Abnormal
+  // Voltage: ±10% Normal, outside ±10% Abnormal (utility standard allows ~±10%)
   if (!isnan(data.voltage) && Vn > 0) {
     float vPct = 100.0f * fabsf(data.voltage - Vn) / Vn;
-    if (vPct > 7.0f) voltCond = COND_ABNORMAL;
+    if (vPct > 10.0f) voltCond = COND_ABNORMAL;
   }
 
   // Current: ≤100% Normal, 100-125% Overload, >125% Severe Overload

@@ -6,7 +6,9 @@
 #include "fault/AlertManager.h"
 #include "connectivity/WiFiManager.h"
 #include "connectivity/BackendClient.h"
+#if ENABLE_SIM
 #include "connectivity/Sim7600Manager.h"
+#endif
 
 PzemSensor pzem;
 OilTempSensor oilTemp;
@@ -14,12 +16,17 @@ ThresholdEvaluator evaluator;
 AlertManager alertMgr;
 WiFiManager wifiMgr;
 BackendClient backendClient;
+#if ENABLE_SIM
 Sim7600Manager sim7600;
+#endif
 
 PzemReading pzemRead;
 float oilTempC = NAN;
 SensorData sensorData;
 EvalParams evalParams;
+#if DEBUG_SERIAL
+static bool lastWiFiConnected = false;
+#endif
 
 void setup() {
   Serial.begin(115200);
@@ -28,6 +35,9 @@ void setup() {
 
   pzem.begin(16, 17);
   oilTemp.begin(5);
+#if DEBUG_SERIAL
+  Serial.println("[DEBUG] Sensors initialized (PZEM, MAX31865)");
+#endif
 
   evalParams.nominalVoltage = NOMINAL_VOLTAGE;
   evalParams.nominalFreq = NOMINAL_FREQUENCY;
@@ -36,8 +46,14 @@ void setup() {
   evaluator.setParams(evalParams);
 
   wifiMgr.begin(WIFI_SSID, WIFI_PASSWORD);
+#if DEBUG_SERIAL
+  Serial.printf("[DEBUG] WiFi connecting to %s...\n", WIFI_SSID);
+  Serial.printf("[DEBUG] Backend: %s, Transformer ID: %d\n", BACKEND_URL, TRANSFORMER_ID);
+#endif
   backendClient.begin(BACKEND_URL, TRANSFORMER_ID);
-  sim7600.begin(34, 32, 115200);
+#if ENABLE_SIM
+  sim7600.begin(SIM_RX_PIN, SIM_TX_PIN, SIM_BAUD);
+#endif
 
   alertMgr.setDebounceMs(60000);
 }
@@ -53,9 +69,42 @@ void loop() {
   sensorData.apparentPower = pzemRead.valid ? (pzemRead.voltage * pzemRead.current) : NAN;
   sensorData.powerFactor = pzemRead.valid ? pzemRead.powerFactor : NAN;
   sensorData.frequency = pzemRead.valid ? pzemRead.frequency : NAN;
-  sensorData.oilTemp = oilTempC;
+  // Treat obviously invalid oil temp (sensor error) as no reading
+  sensorData.oilTemp = (!isnan(oilTempC) && oilTempC >= -50.0f && oilTempC <= 200.0f)
+                          ? oilTempC
+                          : (float)NAN;
 
   const char* condition = evaluator.evaluate(sensorData);
+
+#if DEBUG_SERIAL
+  bool wifiConnected = wifiMgr.isConnected();
+  if (wifiConnected && !lastWiFiConnected) {
+    Serial.println("[DEBUG] WiFi connected");
+  }
+  lastWiFiConnected = wifiConnected;
+
+  Serial.printf("[DEBUG PZEM] raw V=%.2f A=%.3f W=%.1f Wh=%.1f PF=%.2f Hz=%.2f valid=%s\n",
+    pzemRead.voltage, pzemRead.current, pzemRead.power, pzemRead.energy,
+    pzemRead.powerFactor, pzemRead.frequency, pzemRead.valid ? "yes" : "no");
+
+  uint8_t oilFault = oilTemp.readFault();
+  bool oilValid = !isnan(oilTempC) && oilTempC >= -50.0f && oilTempC <= 200.0f;
+  Serial.printf("[DEBUG OIL] raw=%.2f C valid=%s fault=0x%02X",
+    oilTempC, oilValid ? "yes" : "no", oilFault);
+  if (oilFault) {
+    if (oilFault & 0x08) Serial.print(" RTDopen");
+    if (oilFault & 0x20) Serial.print(" RefLow");
+    if (oilFault & 0x10) Serial.print(" RefHigh");
+    if (oilFault & 0x04) Serial.print(" OVUV");
+    if (oilFault & 0x40) Serial.print(" LowThresh");
+    if (oilFault & 0x80) Serial.print(" HighThresh");
+  }
+  Serial.println();
+
+  Serial.printf("[DEBUG] V=%.1f A=%.2f VA=%.0f PF=%.2f Hz=%.1f Oil=%.1f C | %s\n",
+    sensorData.voltage, sensorData.current, sensorData.apparentPower,
+    sensorData.powerFactor, sensorData.frequency, sensorData.oilTemp, condition);
+#endif
 
   if (wifiMgr.isConnected()) {
     ReadingPayload payload = {
@@ -68,9 +117,19 @@ void loop() {
       .oilTemp = sensorData.oilTemp,
       .condition = condition,
     };
-    backendClient.postReading(payload);
+    int httpStatus = backendClient.postReadingWithStatus(payload);
+#if DEBUG_SERIAL
+    if (httpStatus >= 200 && httpStatus < 300) {
+      Serial.println("[DEBUG] POST /api/readings/ OK");
+    } else if (httpStatus == -1) {
+      Serial.println("[DEBUG] POST skipped (WiFi not connected)");
+    } else {
+      Serial.printf("[DEBUG] POST /api/readings/ failed HTTP %d\n", httpStatus);
+    }
+#endif
   }
 
+#if ENABLE_SIM
   if (alertMgr.shouldSendSms(condition)) {
     char msg[128];
     snprintf(msg, sizeof(msg), "PoleTransMonitor ALERT: %s", condition);
@@ -81,6 +140,7 @@ void loop() {
     }
     alertMgr.markSent(condition);
   }
+#endif
 
   delay(SAMPLE_INTERVAL_MS);
 }

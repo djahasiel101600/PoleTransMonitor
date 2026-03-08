@@ -16,6 +16,8 @@ class BackendClient {
  public:
   void begin(const char* baseUrl, int transformerId);
   bool postReading(const ReadingPayload& payload);
+  // Returns HTTP status code; -1 if not attempted (WiFi down)
+  int postReadingWithStatus(const ReadingPayload& payload);
 
  private:
   char baseUrl_[128];

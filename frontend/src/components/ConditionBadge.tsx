@@ -1,3 +1,4 @@
+import { memo } from "react";
 import { Badge } from "./ui/Badge";
 import type { Condition } from "../types";
 
@@ -13,7 +14,7 @@ const CONDITION_LABELS: Record<Condition, string> = {
   critical: "Critical",
 };
 
-const CRITICAL_CONDITIONS: Condition[] = [
+export const CRITICAL_CONDITIONS: Condition[] = [
   "danger_zone",
   "severe_overload",
   "abnormal",
@@ -27,7 +28,7 @@ const WARNING_CONDITIONS: Condition[] = [
   "poor_power_quality",
 ];
 
-export function ConditionBadge({ condition }: { condition: Condition }) {
+export const ConditionBadge = memo(function ConditionBadge({ condition }: { condition: Condition }) {
   let variant: "normal" | "warning" | "critical" = "normal";
   if (CRITICAL_CONDITIONS.includes(condition)) variant = "critical";
   else if (WARNING_CONDITIONS.includes(condition)) variant = "warning";
@@ -35,4 +36,4 @@ export function ConditionBadge({ condition }: { condition: Condition }) {
   return (
     <Badge variant={variant}>{CONDITION_LABELS[condition] ?? condition}</Badge>
   );
-}
+});

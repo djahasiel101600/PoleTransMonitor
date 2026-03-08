@@ -1,4 +1,5 @@
 #include "AlertManager.h"
+#include <Arduino.h>
 #include <string.h>
 
 bool AlertManager::shouldSendSms(const char* condition) {

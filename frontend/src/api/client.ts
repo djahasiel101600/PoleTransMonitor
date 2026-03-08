@@ -30,3 +30,13 @@ export async function acknowledgeAlert(id: number) {
   if (!res.ok) throw new Error("Failed to acknowledge alert");
   return res.json();
 }
+
+export async function acknowledgeAllAlerts(transformerId: number) {
+  const res = await fetch(`${API_BASE}/alerts/acknowledge_all/`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ transformer: transformerId }),
+  });
+  if (!res.ok) throw new Error("Failed to acknowledge all alerts");
+  return res.json();
+}

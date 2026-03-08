@@ -4,7 +4,7 @@ Real-time condition monitoring for single-phase pole-mounted distribution transf
 
 ## Architecture
 
-- **Firmware (ESP32)**: PZEM-004T energy monitor, MAX31865 oil temperature sensor, SIM7600 LTE/SMS. WiFi primary for backend, LTE fallback.
+- **Firmware (ESP32)**: PZEM-004T energy monitor, MAX31865 oil temperature sensor, SIMCom A7670E LTE/SMS. WiFi primary for backend, LTE fallback.
 - **Backend (Django REST + Channels)**: REST API for readings, WebSocket for real-time push.
 - **Frontend (React + Vite + Shadcn)**: Live dashboard, condition badges, alerts.
 
@@ -54,7 +54,35 @@ Edit `firmware/include/config.h` with WiFi, backend URL, transformer ID, and SMS
 |------------|--------------------|
 | PZEM-004T  | UART2: RX=16, TX=17 |
 | MAX31865   | SPI: MOSI=23, MISO=19, SCK=18, CS=5 |
-| SIM7600    | UART1: RX=34, TX=32 |
+| SIM A7670E | UART1: RX=34, TX=32 |
+
+### MAX31865 (Oil Temperature)
+
+**RTD:** PT100, 3-wire. Firmware uses `MAX31865_3WIRE`, 430Ω reference, 100Ω nominal.
+
+**Module pins → ESP32:**
+
+| MAX31865 | Function | ESP32    |
+|----------|----------|----------|
+| CLK      | SPI clock | GPIO 18 (SCK)  |
+| SDO      | Data out (MISO) | GPIO 19 |
+| SDI      | Data in (MOSI)  | GPIO 23 |
+| CS       | Chip select     | GPIO 5  |
+| VIN      | Power            | 3.3V    |
+| GND      | Ground           | GND     |
+| RDY      | Ready (optional) | Not connected |
+
+**3-wire PT100 (1 red, 1 black, 1 blue):**
+
+| RTD wire | MAX31865 terminal |
+|----------|-------------------|
+| Red      | RTD+ (or 1)       |
+| Black    | RTD- (or 2)       |
+| Blue     | F+ (or 3 / sense) |
+
+If readings are wrong, try swapping Black and Blue between RTD- and F+.
+
+**Troubleshooting:** Readings of about -242°C indicate a fault (open circuit or bad wiring). Check RTD connections; a PT100 at ~25°C should measure ~109Ω.
 
 ## Threshold Reference (Table 3.1)
 
