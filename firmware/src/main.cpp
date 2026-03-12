@@ -52,7 +52,7 @@ void setup() {
 #endif
   backendClient.begin(BACKEND_URL, TRANSFORMER_ID);
 #if ENABLE_SIM
-  sim7600.begin(SIM_RX_PIN, SIM_TX_PIN, SIM_BAUD);
+  sim7600.begin(SIM_RX_PIN, SIM_TX_PIN, SIM_BAUD, SIM_PWR_PIN);
 #endif
 
   alertMgr.setDebounceMs(60000);
