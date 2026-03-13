@@ -1,234 +1,203 @@
 /**
- * SIMCom A7670E – standalone UART test
+ * A7670E Standalone Test — learn how the modem works step by step
  *
- * 1. Start UART (so it's ready when modem boots), then power on modem (PWE_EN).
- * 2. Try bauds 9600, 115200, 57600, 38400: send AT, look for OK.
- * 3. If OK: print SIM status (AT+CPIN?), optionally send one test SMS, then echo modem in loop.
+ * This sketch uses only raw AT commands (no TinyGSM). You'll see exactly
+ * what is sent to the modem and what comes back.
  *
- * WIRING (set below):
- *   Modem TXD  →  ESP32 RX  (MODEM_RX)
- *   Modem RXD  ←  ESP32 TX  (MODEM_TX)
- *   Modem PWE_EN  ←  GPIO MODEM_PWR  (LOW 1.5s then HIGH to power on)
+ * Flow:
+ *   1. Open UART at 9600 (before modem boots).
+ *   2. Power on modem (PWE_EN pulse), then capture boot output for 8s.
+ *   3. Find working baud: try 9600, 115200, 57600, 38400 with "AT" -> "OK".
+ *   4. Run AT+CPIN? (SIM status).
+ *   5. Optionally send one test SMS.
+ *   6. Loop: echo any bytes from modem (so you can type AT commands in Serial Monitor).
  *
- * Build/upload from firmware/a7670e_test, then: pio device monitor -b 115200
+ * Wiring:
+ *   A7670E TXD -> ESP32 RX (MODEM_RX)
+ *   A7670E RXD <- ESP32 TX (MODEM_TX)
+ *   A7670E PWE_EN <- MODEM_PWR (LOW 1.5s then HIGH to power on)
  */
 
 #include <Arduino.h>
 #include <HardwareSerial.h>
+#include <stdio.h>
 
-// ============ CONFIG (change to match your wiring) ============
-#define MODEM_RX  16   // ESP32 RX  ← Modem TXD   (try 17, 25, 34 if needed)
-#define MODEM_TX  17   // ESP32 TX  → Modem RXD   (try 16, 26, 32 if needed)
-#define MODEM_PWR 4    // PWE_EN (0 = not used)
+// ----- Config (match your wiring; or include "../include/config.h" and use SIM_RX_PIN etc.) -----
+#define MODEM_RX       16   // ESP32 RX  <- A7670E TXD
+#define MODEM_TX       17   // ESP32 TX  -> A7670E RXD
+#define MODEM_PWR      4    // PWE_EN pin (0 = not used, modem always on)
+#define SEND_TEST_SMS  1    // Set to 1 to send one SMS on startup
+// #define TEST_SMS_NUMBER "+639922790155"
+#define TEST_SMS_NUMBER "+639058122818"
+// Optional: run a basic internet attach test (uses your APN)
+#define RUN_INTERNET_TEST  0        // Set to 1 to enable
+#define APN                "internet.globe.com.ph"  // Change to your SIM's APN
 
-// Set to 1 to send one test SMS after AT OK (and set number below)
-#define SEND_TEST_SMS  0
-#define TEST_SMS_NUMBER "+639171234567"
-// ==============================================================
-
-#define AT_TIMEOUT_MS   3000
-#define BOOT_DRAIN_MS   8000
-
+// UART to modem (ESP32 HardwareSerial 2)
 HardwareSerial ModemSerial(2);
-static unsigned long g_workingBaud = 0;
 
-// Drain modem output for timeoutMs; print as hex; return byte count
-static int drainAndPrintHex(uint32_t timeoutMs) {
-  int n = 0;
-  uint32_t dead = millis() + timeoutMs;
-  while (millis() < dead) {
-    while (ModemSerial.available()) {
-      uint8_t c = (uint8_t)ModemSerial.read();
-      n++;
-      Serial.printf("%02X ", c);
-      if (n % 20 == 0) Serial.println();
-    }
-    delay(5);
-  }
-  if (n > 0 && n % 20 != 0) Serial.println();
-  return n;
-}
-
-// Send "AT", collect response for timeoutMs; return true if "OK" found
-static bool sendAtAndWaitOk(unsigned long baud, uint32_t timeoutMs) {
-  ModemSerial.end();
-  delay(150);
-  ModemSerial.begin(baud, SERIAL_8N1, MODEM_RX, MODEM_TX);
-  delay(100);
+// ----- Helpers: send AT and collect response into a String -----
+static bool sendAtAndCollect(String& response, uint32_t timeoutMs = 3000) {
+  response = "";
   while (ModemSerial.available()) ModemSerial.read();
-
   ModemSerial.println("AT");
-  delay(150);
-
-  char buf[128];
-  int len = 0;
-  uint32_t dead = millis() + timeoutMs;
-  while (millis() < dead && len < (int)sizeof(buf) - 1) {
-    while (ModemSerial.available() && len < (int)sizeof(buf) - 1) {
-      char c = (char)ModemSerial.read();
-      buf[len++] = c;
-      buf[len] = '\0';
-      if (strstr(buf, "OK")) return true;
-      if (strstr(buf, "AT\r\r\n")) { /* echo, keep going */ }
-    }
-    delay(5);
-  }
-  return false;
-}
-
-// Print response as text (printable) or hex for debugging
-static void printResponse(uint32_t timeoutMs) {
-  int n = 0;
-  uint32_t dead = millis() + timeoutMs;
-  Serial.print("  response: ");
-  while (millis() < dead) {
+  uint32_t deadline = millis() + timeoutMs;
+  while (millis() < deadline) {
     while (ModemSerial.available()) {
-      int c = ModemSerial.read() & 0xFF;
-      n++;
-      if (c >= 32 && c < 127) Serial.write((char)c);
-      else Serial.printf("[%02X]", c);
+      char c = (char)ModemSerial.read();
+      response += c;
     }
-    delay(5);
+    delay(10);
   }
-  if (n == 0) Serial.print("(none)");
-  Serial.println();
+  return response.indexOf("OK") >= 0;
 }
 
-// Send AT command, wait for OK, print response
-static bool atCommand(const char* cmd, uint32_t timeoutMs) {
+// Try a baud rate: send AT, return true if we see OK
+static bool tryBaud(long baud) {
+  ModemSerial.end();
+  delay(200);
+  ModemSerial.begin(baud, SERIAL_8N1, MODEM_RX, MODEM_TX);
+  delay(400);
+  String r;
+  bool ok = sendAtAndCollect(r, 4000);
+  if (ok) Serial.printf("  -> OK at %ld baud\n", baud);
+  return ok;
+}
+
+// Send raw AT line and print response (for learning / debugging)
+static void atCommand(const char* cmd, uint32_t timeoutMs = 3000) {
   while (ModemSerial.available()) ModemSerial.read();
+  Serial.printf(">> %s\n", cmd);
   ModemSerial.println(cmd);
-  delay(100);
-  char buf[96];
-  int len = 0;
-  uint32_t dead = millis() + timeoutMs;
-  while (millis() < dead && len < (int)sizeof(buf) - 1) {
-    while (ModemSerial.available() && len < (int)sizeof(buf) - 1) {
-      char c = (char)ModemSerial.read();
-      buf[len++] = c;
-      buf[len] = '\0';
-      if (strstr(buf, "OK")) {
-        Serial.print("  -> ");
-        Serial.println(cmd);
-        return true;
-      }
-    }
-    delay(5);
-  }
-  return false;
-}
-
-// Send SMS in text mode; return true on success
-static bool sendSmsSimple(const char* number, const char* text) {
-  if (!atCommand("AT+CMGF=1", 2000)) return false;
-  while (ModemSerial.available()) ModemSerial.read();
-  ModemSerial.print("AT+CMGS=\"");
-  ModemSerial.print(number);
-  ModemSerial.println("\"");
-  delay(500);
-  int last = -1;
-  uint32_t dead = millis() + 5000;
-  while (millis() < dead) {
-    if (ModemSerial.available()) {
-      last = ModemSerial.read();
-      if (last == '>') break;
-    }
-    delay(5);
-  }
-  if (last != '>') { Serial.println("  SMS: no >"); return false; }
-  ModemSerial.println(text);
-  delay(100);
-  ModemSerial.write(0x1A);
-  delay(300);
-  dead = millis() + 20000;
-  char buf[8];
-  int bi = 0;
-  while (millis() < dead) {
+  uint32_t deadline = millis() + timeoutMs;
+  while (millis() < deadline) {
     while (ModemSerial.available()) {
-      char c = (char)ModemSerial.read();
-      Serial.write(c >= 32 && c < 127 ? c : '.');
-      if (bi < (int)sizeof(buf) - 1) { buf[bi++] = c; buf[bi] = '\0'; }
-      if (strstr(buf, "OK")) { Serial.println(); return true; }
+      Serial.write((char)ModemSerial.read());
     }
     delay(10);
   }
   Serial.println();
-  return false;
 }
 
 void setup() {
   Serial.begin(115200);
-  delay(800);
-  Serial.println("\n========== SIMCom A7670E test ==========\n");
+  delay(1500);
+  Serial.println("\n===== A7670E Standalone Test =====\n");
 
-  // UART on before power so we don't miss boot
-  Serial.println("[1] Opening UART at 9600 (RX=" + String(MODEM_RX) + " TX=" + String(MODEM_TX) + ")");
+  // ----- Step 1: Open UART at 9600 so we're ready before modem boots -----
+  Serial.println("[1] Opening UART at 9600...");
   ModemSerial.begin(9600, SERIAL_8N1, MODEM_RX, MODEM_TX);
   delay(200);
+  Serial.println("     Done.\n");
 
+  // ----- Step 2: Power on modem (PWE_EN), then capture boot output -----
   if (MODEM_PWR > 0) {
-    Serial.println("[2] Power on (PWE_EN pulse 1.5s LOW)...");
+    Serial.println("[2] Power on: PWE_EN LOW 1.5s then HIGH...");
     pinMode(MODEM_PWR, OUTPUT);
     digitalWrite(MODEM_PWR, HIGH);
     delay(100);
     digitalWrite(MODEM_PWR, LOW);
     delay(1500);
     digitalWrite(MODEM_PWR, HIGH);
-    delay(2500);
-    Serial.println("     Waiting for boot output (8s)...");
-    int n = drainAndPrintHex(BOOT_DRAIN_MS);
-    Serial.printf("     (%d bytes)\n\n", n);
+    delay(2000);
+    Serial.println("     Listening 8s for modem boot output (raw)...\n");
+
+    uint32_t endMs = millis() + 8000;
+    int count = 0;
+    while (millis() < endMs) {
+      while (ModemSerial.available()) {
+        int c = ModemSerial.read();
+        count++;
+        if (c >= 32 && c < 127) Serial.write((char)c);
+        else Serial.printf("\\x%02X", c & 0xFF);
+      }
+      delay(20);
+    }
+    Serial.printf("\n     Received %d bytes from modem.\n\n", count);
   } else {
-    Serial.println("[2] No PWR pin; waiting 5s...");
-    delay(5000);
-    while (ModemSerial.available()) ModemSerial.read();
+    Serial.println("[2] No PWR pin — assuming modem already on. Waiting 3s...");
+    delay(3000);
   }
 
-  // Try each baud until we get OK
-  const unsigned long bauds[] = { 9600, 115200, 57600, 38400 };
-  for (int i = 0; i < 4; i++) {
-    Serial.printf("[3] Trying %lu baud... ", bauds[i]);
-    if (sendAtAndWaitOk(bauds[i], AT_TIMEOUT_MS)) {
-      g_workingBaud = bauds[i];
-      Serial.printf("OK at %lu baud.\n\n", g_workingBaud);
+  // ----- Step 3: Find working baud (9600, 115200, 57600, 38400) -----
+  Serial.println("[3] Finding baud rate (AT -> OK)...");
+  const long bauds[] = { 9600, 115200, 57600, 38400 };
+  bool found = false;
+  for (size_t i = 0; i < sizeof(bauds) / sizeof(bauds[0]); i++) {
+    Serial.printf("     Try %ld... ", bauds[i]);
+    if (tryBaud(bauds[i])) {
+      found = true;
       break;
     }
-    printResponse(500);
-    Serial.println();
+    Serial.println("no OK");
   }
-
-  if (g_workingBaud == 0) {
-    Serial.println("No AT OK on any baud. Check wiring: Modem TXD->ESP RX, RXD<-ESP TX, PWE_EN, power.");
-    Serial.println("Loop: echoing modem.\n");
-    return;
-  }
-
-  // SIM status
-  Serial.println("[4] SIM status (AT+CPIN?)...");
-  while (ModemSerial.available()) ModemSerial.read();
-  ModemSerial.println("AT+CPIN?");
-  delay(200);
-  printResponse(2000);
+  if (!found) {
+    Serial.println("     No AT OK at any baud. Check wiring and power.\n");
+  } else {
+    // ----- Step 4: SIM status (AT+CPIN?) -----
+    Serial.println("\n[4] SIM status (AT+CPIN?)...");
+    atCommand("AT+CPIN?", 4000);
+    // +CPIN: READY means SIM is present and unlocked
 
 #if SEND_TEST_SMS
-  Serial.println("[5] Sending test SMS to " TEST_SMS_NUMBER "...");
-  if (sendSmsSimple(TEST_SMS_NUMBER, "Test from ESP32+A7670E")) {
-    Serial.println("     OK.");
-  } else {
-    Serial.println("     Failed (check signal/number).");
-  }
+    // ----- Step 5: Optional test SMS -----
+    Serial.println("[5] Sending test SMS...");
+    atCommand("AT+CMGF=1", 2000);   // Text mode
+    ModemSerial.print("AT+CMGS=\"");
+    ModemSerial.print(TEST_SMS_NUMBER);
+    ModemSerial.println("\"");
+    // Wait for "> " prompt (modem ready for message body)
+    uint32_t promptEnd = millis() + 3000;
+    while (millis() < promptEnd && ModemSerial.available() < 2) {
+      while (ModemSerial.available()) Serial.write(ModemSerial.read());
+      delay(20);
+    }
+    while (ModemSerial.available()) Serial.write(ModemSerial.read());
+    ModemSerial.println("A7670E test from ESP32");
+    ModemSerial.write(0x1A);   // Ctrl+Z to send
+    uint32_t t = millis() + 15000;
+    while (millis() < t) {
+      while (ModemSerial.available()) Serial.write(ModemSerial.read());
+      delay(50);
+    }
+    Serial.println("\n     SMS send attempted.\n");
 #else
-  Serial.println("[5] Skipping SMS (set SEND_TEST_SMS 1 and TEST_SMS_NUMBER in code to enable).");
+    Serial.println("[5] SEND_TEST_SMS=0 — skip SMS.\n");
 #endif
 
-  Serial.println("\nDone. Loop: echoing modem (reply to see incoming).\n");
+#if RUN_INTERNET_TEST
+    // ----- Step 6: Basic internet attach test -----
+    Serial.println("[6] Basic internet attach test...");
+    // Signal quality and operator
+    atCommand("AT+CSQ", 4000);
+    atCommand("AT+COPS?", 4000);
+
+    // Attach to packet service
+    atCommand("AT+CGATT=1", 15000);
+
+    // Set PDP context with your APN
+    char apnCmd[64];
+    snprintf(apnCmd, sizeof(apnCmd), "AT+CGDCONT=1,\"IP\",\"%s\"", APN);
+    atCommand(apnCmd, 5000);
+
+    // Open IP session and ask for IP address
+    atCommand("AT+NETOPEN", 20000);
+    atCommand("AT+IPADDR", 5000);
+    Serial.println("[6] Internet test finished (even if it fails, the responses are useful for debugging).\n");
+#endif
+  }
+
+  Serial.println("----- Setup done. Loop: echoing modem (type AT in Serial Monitor) -----\n");
 }
 
 void loop() {
+  // Echo modem -> Serial (so you can see modem responses)
   while (ModemSerial.available()) {
-    int c = ModemSerial.read();
-    if (c >= 32 && c < 127) Serial.write((char)c);
-    else Serial.printf("[%02X]", c & 0xFF);
+    Serial.write(ModemSerial.read());
+  }
+  // Echo Serial -> modem (so you can type AT commands in Serial Monitor)
+  while (Serial.available()) {
+    ModemSerial.write(Serial.read());
   }
   delay(20);
 }
