@@ -91,7 +91,7 @@ class AlertViewSet(viewsets.ModelViewSet):
                 {"error": "transformer id required"},
                 status=status.HTTP_400_BAD_REQUEST,
             )
-        count, _ = Alert.objects.filter(
+        count = Alert.objects.filter(
             transformer_id=transformer_id, acknowledged=False
         ).update(acknowledged=True)
         return Response({"acknowledged": count})

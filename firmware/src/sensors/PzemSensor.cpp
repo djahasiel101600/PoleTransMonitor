@@ -7,7 +7,7 @@ void PzemSensor::begin(int rxPin, int txPin) {
   rxPin_ = rxPin;
   txPin_ = txPin;
   if (!pzem) {
-    pzem = new PZEM004Tv30(Serial2, rxPin, txPin);
+    pzem = new PZEM004Tv30(Serial1, rxPin, txPin);  // Serial1 so modem can use Serial2 (match a7670e_test)
   }
   pzem->resetEnergy();
   initialized_ = true;

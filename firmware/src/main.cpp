@@ -1,4 +1,6 @@
 #include <Arduino.h>
+#include <cctype>
+#include <cstring>
 #include "config.h"
 #include "sensors/PzemSensor.h"
 #include "sensors/OilTempSensor.h"
@@ -52,7 +54,26 @@ void setup() {
 #endif
   backendClient.begin(BACKEND_URL, TRANSFORMER_ID);
 #if ENABLE_SIM
-  sim7600.begin(SIM_RX_PIN, SIM_TX_PIN, SIM_BAUD);
+  sim7600.begin(SIM_RX_PIN, SIM_TX_PIN, SIM_BAUD, SIM_PWR_PIN);
+#if defined(SEND_TEST_SMS_ON_BOOT) && SEND_TEST_SMS_ON_BOOT
+  if (sim7600.isReady()) {
+    if (sim7600.sendSms(SMS_RECIPIENT, TEST_SMS_MESSAGE)) {
+      Serial.println("[DEBUG] Test SMS sent to " SMS_RECIPIENT);
+    } else {
+      Serial.println("[DEBUG] Test SMS failed");
+    }
+  } else {
+    Serial.println("[DEBUG] Test SMS skipped (modem not ready)");
+  }
+#endif
+#if defined(ENABLE_SMS_STATUS_REPLY) && ENABLE_SMS_STATUS_REPLY
+  if (sim7600.isReady()) {
+    sim7600.enableSmsIndication();
+#if DEBUG_SERIAL
+    Serial.println("[DEBUG] SMS status reply ON: send \"" SMS_STATUS_COMMAND "\" to get transformer status");
+#endif
+  }
+#endif
 #endif
 
   alertMgr.setDebounceMs(60000);
@@ -140,6 +161,41 @@ void loop() {
     }
     alertMgr.markSent(condition);
   }
+
+#if defined(ENABLE_SMS_STATUS_REPLY) && ENABLE_SMS_STATUS_REPLY
+  {
+    char sender[32];
+    char body[128];
+    if (sim7600.pollIncomingSms(sender, sizeof(sender), body, sizeof(body))) {
+      // Case-insensitive match of body to status command (trimmed body already from pollIncomingSms)
+      char cmd[32];
+      size_t i = 0;
+      while (body[i] && i < sizeof(cmd) - 1) {
+        cmd[i] = (char)toupper((unsigned char)body[i]);
+        i++;
+      }
+      cmd[i] = '\0';
+      if (strcmp(cmd, SMS_STATUS_COMMAND) == 0) {
+        // Format electrical parameters for SMS (single segment; n/a for invalid)
+        char statusMsg[160];
+        char v[12], a[12], va[12], pf[12], hz[12], oil[12];
+        if (!isnan(sensorData.voltage)) snprintf(v, sizeof(v), "%.1f", sensorData.voltage); else strcpy(v, "n/a");
+        if (!isnan(sensorData.current)) snprintf(a, sizeof(a), "%.2f", sensorData.current); else strcpy(a, "n/a");
+        if (!isnan(sensorData.apparentPower)) snprintf(va, sizeof(va), "%.0f", sensorData.apparentPower); else strcpy(va, "n/a");
+        if (!isnan(sensorData.powerFactor)) snprintf(pf, sizeof(pf), "%.2f", sensorData.powerFactor); else strcpy(pf, "n/a");
+        if (!isnan(sensorData.frequency)) snprintf(hz, sizeof(hz), "%.1f", sensorData.frequency); else strcpy(hz, "n/a");
+        if (!isnan(sensorData.oilTemp)) snprintf(oil, sizeof(oil), "%.1f", sensorData.oilTemp); else strcpy(oil, "n/a");
+        snprintf(statusMsg, sizeof(statusMsg), "V=%s A=%s VA=%s PF=%s Hz=%s Oil=%sC | %s",
+                 v, a, va, pf, hz, oil, condition ? condition : "?");
+        if (sim7600.sendSms(sender, statusMsg)) {
+#if DEBUG_SERIAL
+          Serial.printf("[DEBUG] Status SMS sent to %s\n", sender);
+#endif
+        }
+      }
+    }
+  }
+#endif
 #endif
 
   delay(SAMPLE_INTERVAL_MS);
