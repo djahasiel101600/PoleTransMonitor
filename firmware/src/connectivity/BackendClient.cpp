@@ -23,17 +23,27 @@ int BackendClient::postReadingWithStatus(const ReadingPayload& payload) {
   http.begin(url);
   http.addHeader("Content-Type", "application/json");
 
-  StaticJsonDocument<384> doc;
+  StaticJsonDocument<420> doc;
   doc["transformer_id"] = payload.transformerId;
   doc["voltage"] = payload.voltage;
   doc["current"] = payload.current;
   doc["apparent_power"] = payload.apparentPower;
-  doc["power_factor"] = payload.powerFactor;
+  if (!isnan(payload.realPower)) {
+    doc["real_power"] = payload.realPower >= 0.0f ? payload.realPower : 0.0f;
+  }
+  // Only send power_factor when valid (0–1); NaN is not valid JSON
+  if (!isnan(payload.powerFactor) && payload.powerFactor >= 0.0f && payload.powerFactor <= 1.0f) {
+    doc["power_factor"] = payload.powerFactor;
+  }
   doc["frequency"] = payload.frequency;
   doc["oil_temp"] = payload.oilTemp;
+  // Always send energy_kwh when we have a valid number (0 or positive); dashboard shows cumulative kWh
+  if (!isnan(payload.energyKwh)) {
+    doc["energy_kwh"] = payload.energyKwh >= 0.0f ? payload.energyKwh : 0.0f;
+  }
   doc["condition"] = payload.condition;
 
-  char body[384];
+  char body[420];
   size_t len = serializeJson(doc, body);
 
   int code = http.POST((uint8_t*)body, len);

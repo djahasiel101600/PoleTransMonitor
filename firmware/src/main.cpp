@@ -1,12 +1,14 @@
 #include <Arduino.h>
+#include <WiFi.h>
+#include <WiFiManager.h>
 #include <cctype>
 #include <cstring>
 #include "config.h"
+#include "config/ConfigManager.h"
 #include "sensors/PzemSensor.h"
 #include "sensors/OilTempSensor.h"
 #include "fault/ThresholdEvaluator.h"
 #include "fault/AlertManager.h"
-#include "connectivity/WiFiManager.h"
 #include "connectivity/BackendClient.h"
 #if ENABLE_SIM
 #include "connectivity/Sim7600Manager.h"
@@ -16,8 +18,9 @@ PzemSensor pzem;
 OilTempSensor oilTemp;
 ThresholdEvaluator evaluator;
 AlertManager alertMgr;
-WiFiManager wifiMgr;
+ConfigManager configMgr;
 BackendClient backendClient;
+WiFiManager wm;  // library: config portal + WiFi connect
 #if ENABLE_SIM
 Sim7600Manager sim7600;
 #endif
@@ -47,12 +50,39 @@ void setup() {
   evalParams.ratedApparentPower = RATED_APPARENT_POWER;
   evaluator.setParams(evalParams);
 
-  wifiMgr.begin(WIFI_SSID, WIFI_PASSWORD);
+  configMgr.load();
+  char tidDefault[8];
+  snprintf(tidDefault, sizeof(tidDefault), "%d", configMgr.getTransformerId());
+  WiFiManagerParameter pBackendUrl("server", "Server URL (e.g. http://192.168.1.6:8000)", configMgr.getBackendUrl(), 128);
+  WiFiManagerParameter pTransformerId("tid", "Transformer ID", tidDefault, 8);
+  wm.addParameter(&pBackendUrl);
+  wm.addParameter(&pTransformerId);
+  wm.setSaveConfigCallback([&]() {
+    configMgr.setBackendUrl(pBackendUrl.getValue());
+    int tid = atoi(pTransformerId.getValue());
+    if (tid > 0) configMgr.setTransformerId(tid);
+    configMgr.save();
 #if DEBUG_SERIAL
-  Serial.printf("[DEBUG] WiFi connecting to %s...\n", WIFI_SSID);
-  Serial.printf("[DEBUG] Backend: %s, Transformer ID: %d\n", BACKEND_URL, TRANSFORMER_ID);
+    Serial.println("[DEBUG] Config saved: backend URL and transformer ID");
 #endif
-  backendClient.begin(BACKEND_URL, TRANSFORMER_ID);
+  });
+
+  Serial.println("WiFi: if config portal opens, connect to AP \"PoleTransMonitor-Setup\" (password: config123)");
+  Serial.println("      then open in browser: http://192.168.4.1");
+  bool connected = wm.autoConnect("PoleTransMonitor-Setup", "config123");
+  if (connected) {
+#if DEBUG_SERIAL
+    Serial.printf("[DEBUG] WiFi connected to %s\n", WiFi.SSID().c_str());
+#endif
+  } else {
+#if DEBUG_SERIAL
+    Serial.println("[DEBUG] Config portal closed without connecting. Retrying...");
+#endif
+  }
+#if DEBUG_SERIAL
+  Serial.printf("[DEBUG] Backend: %s, Transformer ID: %d\n", configMgr.getBackendUrl(), configMgr.getTransformerId());
+#endif
+  backendClient.begin(configMgr.getBackendUrl(), configMgr.getTransformerId());
 #if ENABLE_SIM
   sim7600.begin(SIM_RX_PIN, SIM_TX_PIN, SIM_BAUD, SIM_PWR_PIN);
 #if defined(SEND_TEST_SMS_ON_BOOT) && SEND_TEST_SMS_ON_BOOT
@@ -80,7 +110,13 @@ void setup() {
 }
 
 void loop() {
-  wifiMgr.loop();
+  if (WiFi.status() != WL_CONNECTED) {
+    static unsigned long lastReconnect = 0;
+    if (millis() - lastReconnect >= 10000) {
+      lastReconnect = millis();
+      WiFi.reconnect();
+    }
+  }
 
   pzem.read(pzemRead);
   oilTemp.read(oilTempC);
@@ -98,7 +134,7 @@ void loop() {
   const char* condition = evaluator.evaluate(sensorData);
 
 #if DEBUG_SERIAL
-  bool wifiConnected = wifiMgr.isConnected();
+  bool wifiConnected = (WiFi.status() == WL_CONNECTED);
   if (wifiConnected && !lastWiFiConnected) {
     Serial.println("[DEBUG] WiFi connected");
   }
@@ -127,15 +163,19 @@ void loop() {
     sensorData.powerFactor, sensorData.frequency, sensorData.oilTemp, condition);
 #endif
 
-  if (wifiMgr.isConnected()) {
+  if (WiFi.status() == WL_CONNECTED) {
     ReadingPayload payload = {
-      .transformerId = TRANSFORMER_ID,
+      .transformerId = configMgr.getTransformerId(),
       .voltage = sensorData.voltage,
       .current = sensorData.current,
       .apparentPower = sensorData.apparentPower,
+      .realPower = pzemRead.valid ? pzemRead.power : (float)NAN,
       .powerFactor = sensorData.powerFactor,
       .frequency = sensorData.frequency,
       .oilTemp = sensorData.oilTemp,
+      .energyKwh = pzemRead.valid
+          ? ((!isnan(pzemRead.energy) && pzemRead.energy >= 0.0f) ? pzemRead.energy : 0.0f)
+          : (float)NAN,
       .condition = condition,
     };
     int httpStatus = backendClient.postReadingWithStatus(payload);
@@ -167,6 +207,9 @@ void loop() {
     char sender[32];
     char body[128];
     if (sim7600.pollIncomingSms(sender, sizeof(sender), body, sizeof(body))) {
+#if DEBUG_SERIAL
+      Serial.printf("[DEBUG] Incoming SMS from %s body=\"%s\"\n", sender, body);
+#endif
       // Case-insensitive match of body to status command (trimmed body already from pollIncomingSms)
       char cmd[32];
       size_t i = 0;
@@ -176,6 +219,9 @@ void loop() {
       }
       cmd[i] = '\0';
       if (strcmp(cmd, SMS_STATUS_COMMAND) == 0) {
+#if DEBUG_SERIAL
+        Serial.printf("[DEBUG] Sending status reply to %s\n", sender);
+#endif
         // Format electrical parameters for SMS (single segment; n/a for invalid)
         char statusMsg[160];
         char v[12], a[12], va[12], pf[12], hz[12], oil[12];

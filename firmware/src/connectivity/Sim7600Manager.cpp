@@ -141,6 +141,10 @@ bool Sim7600Manager::sendSms(const char* recipient, const char* message) {
 void Sim7600Manager::enableSmsIndication() {
   if (!initialized_) return;
   while (SerialAT.available()) SerialAT.read();
+  // Text mode required for +CMT to deliver message body as text
+  SerialAT.println("AT+CMGF=1");
+  delay(300);
+  while (SerialAT.available()) SerialAT.read();
   SerialAT.println("AT+CNMI=1,2,0,0,0");
   delay(100);
   uint32_t deadline = millis() + 2000;
@@ -149,7 +153,7 @@ void Sim7600Manager::enableSmsIndication() {
     delay(10);
   }
 #if DEBUG_SERIAL
-  Serial.println("[DEBUG SIM] CNMI=1,2,0,0,0 (new SMS forwarded to TE)");
+  Serial.println("[DEBUG SIM] CMGF=1, CNMI=1,2,0,0,0 (new SMS forwarded to TE)");
 #endif
 }
 

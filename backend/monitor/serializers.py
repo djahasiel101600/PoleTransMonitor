@@ -28,9 +28,11 @@ class ReadingSerializer(serializers.ModelSerializer):
             "voltage",
             "current",
             "apparent_power",
+            "real_power",
             "power_factor",
             "frequency",
             "oil_temp",
+            "energy_kwh",
             "condition",
         ]
 
@@ -47,9 +49,11 @@ class ReadingCreateSerializer(serializers.ModelSerializer):
             "voltage",
             "current",
             "apparent_power",
+            "real_power",
             "power_factor",
             "frequency",
             "oil_temp",
+            "energy_kwh",
             "condition",
         ]
 

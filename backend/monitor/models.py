@@ -39,9 +39,19 @@ class Reading(models.Model):
     voltage = models.FloatField(null=True, blank=True)
     current = models.FloatField(null=True, blank=True)
     apparent_power = models.FloatField(null=True, blank=True)
+    real_power = models.FloatField(
+        null=True,
+        blank=True,
+        help_text="Real power in watts (live wattage from PZEM)",
+    )
     power_factor = models.FloatField(null=True, blank=True)
     frequency = models.FloatField(null=True, blank=True)
     oil_temp = models.FloatField(null=True, blank=True)
+    energy_kwh = models.FloatField(
+        null=True,
+        blank=True,
+        help_text="Cumulative energy in kWh (from PZEM since last reset)",
+    )
     condition = models.CharField(
         max_length=30, choices=CONDITION_CHOICES, default="normal"
     )

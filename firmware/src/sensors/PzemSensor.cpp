@@ -1,5 +1,6 @@
 #include "PzemSensor.h"
 #include <PZEM004Tv30.h>
+#include <cmath>
 
 static PZEM004Tv30* pzem = nullptr;
 
@@ -24,6 +25,16 @@ bool PzemSensor::read(PzemReading& out) {
   out.energy = pzem->energy();
   out.powerFactor = pzem->pf();
   out.frequency = pzem->frequency();
+
+  // Fallback: some PZEM-004T v3.0 units return 0 or NaN for PF; compute from P / (V*I)
+  float apparent = out.voltage * out.current;
+  if ((isnan(out.powerFactor) || out.powerFactor <= 0.0f) && !isnan(out.power) && !isnan(apparent) && apparent > 0.1f && out.power >= 0.0f) {
+    float pf = out.power / apparent;
+    if (pf > 1.0f) pf = 1.0f;
+    if (pf < 0.0f) pf = 0.0f;
+    out.powerFactor = pf;
+  }
+
   out.valid = !isnan(out.voltage) && out.voltage > 0;
   return out.valid;
 }

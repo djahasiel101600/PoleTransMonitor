@@ -7,12 +7,11 @@
 #define RATED_CURRENT 68.0f
 #define RATED_APPARENT_POWER 15000.0f
 
-// WiFi
-#define WIFI_SSID "2.4GHz-Band"
+// WiFi & Backend — configured via config portal (AP "PoleTransMonitor-Setup") on first run or when connection fails.
+// These are fallback defaults when nothing is saved in NVS yet.
+#define WIFI_SSID "2.4GHz-Band-"
 #define WIFI_PASSWORD "#2.4GHz-Band_21"
-
-// Backend
-#define BACKEND_URL "http://192.168.1.6:8000"
+#define BACKEND_URL "http://192.168.1.5:8000"
 #define TRANSFORMER_ID 1
 
 // SIM A7670E SMS (set to 1 to enable)

@@ -16,7 +16,7 @@ import { useMonitorWebSocket } from "../hooks/useMonitorWebSocket";
 import type { Reading } from "../types";
 
 type TimeRange = "1h" | "6h" | "24h";
-type Metric = "voltage" | "current" | "oilTemp";
+type Metric = "voltage" | "current";
 
 const TIME_RANGES: { value: TimeRange; label: string; ms: number }[] = [
   { value: "1h", label: "1 hour", ms: 60 * 60 * 1000 },
@@ -25,9 +25,8 @@ const TIME_RANGES: { value: TimeRange; label: string; ms: number }[] = [
 ];
 
 const METRIC_CONFIG: Record<Metric, { label: string; color: string; dataKey: string }> = {
-  voltage: { label: "Voltage (V)", color: "#0369a1", dataKey: "voltage" },
-  current: { label: "Current (A)", color: "#0d9488", dataKey: "current" },
-  oilTemp: { label: "Oil temp (°C)", color: "#dc2626", dataKey: "oilTemp" },
+  voltage: { label: "Voltage (V)", color: "#0d9488", dataKey: "voltage" },
+  current: { label: "Current (A)", color: "#0f766e", dataKey: "current" },
 };
 
 const CHART_MARGIN = { top: 5, right: 20, left: 0, bottom: 5 };
@@ -58,7 +57,6 @@ export function ReadingsChart({ transformerId }: { transformerId: number | null 
   const [visibleMetrics, setVisibleMetrics] = useState<Record<Metric, boolean>>({
     voltage: true,
     current: true,
-    oilTemp: true,
   });
   const { reading: wsReading, connected } = useMonitorWebSocket(transformerId);
 
@@ -99,7 +97,6 @@ export function ReadingsChart({ transformerId }: { transformerId: number | null 
         time: r.timestamp,
         voltage: isValidNum(r.voltage) && r.voltage >= 0 && r.voltage <= 500 ? r.voltage : null,
         current: isValidNum(r.current) && r.current >= 0 && r.current <= 500 ? r.current : null,
-        oilTemp: isValidNum(r.oil_temp) && r.oil_temp >= -50 && r.oil_temp <= 200 ? r.oil_temp : null,
         power: isValidNum(r.apparent_power) && r.apparent_power >= 0 ? r.apparent_power : null,
       })),
     [readings]
@@ -107,9 +104,8 @@ export function ReadingsChart({ transformerId }: { transformerId: number | null 
 
   const showVoltage = visibleMetrics.voltage && chartData.some((d) => d.voltage != null);
   const showCurrent = visibleMetrics.current && chartData.some((d) => d.current != null);
-  const showOilTemp = visibleMetrics.oilTemp && chartData.some((d) => d.oilTemp != null);
 
-  const hasData = showVoltage || showCurrent || showOilTemp;
+  const hasData = showVoltage || showCurrent;
 
   const toggleMetric = useCallback((m: Metric) => {
     setVisibleMetrics((prev) => ({ ...prev, [m]: !prev[m] }));
@@ -119,25 +115,25 @@ export function ReadingsChart({ transformerId }: { transformerId: number | null 
 
   if (loading) {
     return (
-      <Card>
+      <Card className="border-border/80 shadow-none">
         <CardHeader>
-          <Skeleton className="h-6 w-32" />
+          <Skeleton className="h-5 w-24" />
         </CardHeader>
         <CardContent>
-          <Skeleton className="h-64 w-full" />
+          <Skeleton className="h-56 w-full rounded-lg" />
         </CardContent>
       </Card>
     );
   }
 
   return (
-    <Card>
-      <CardHeader className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+    <Card className="border-border/80 shadow-none">
+      <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex flex-wrap items-center gap-3">
-          <CardTitle className="text-lg">Trends</CardTitle>
+          <CardTitle className="text-base font-semibold">Trends</CardTitle>
           {connected && (
-            <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-800 dark:bg-green-900/40 dark:text-green-400">
-              <span className="h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse" aria-hidden />
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
+              <span className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse" aria-hidden />
               Live
             </span>
           )}
@@ -160,12 +156,12 @@ export function ReadingsChart({ transformerId }: { transformerId: number | null 
             ))}
           </div>
         </div>
-        <div className="flex gap-1 rounded-lg border border-border p-1">
+        <div className="flex gap-0.5 rounded-md border border-border/80 p-0.5">
           {TIME_RANGES.map((r) => (
             <button
               key={r.value}
               onClick={() => setTimeRange(r.value)}
-              className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
+              className={`rounded px-2.5 py-1 text-xs font-medium transition-colors ${
                 timeRange === r.value
                   ? "bg-primary text-primary-foreground"
                   : "text-muted-foreground hover:bg-muted hover:text-foreground"
@@ -197,8 +193,8 @@ export function ReadingsChart({ transformerId }: { transformerId: number | null 
                   />
                   <YAxis
                     yAxisId="left"
-                    tick={{ fontSize: 11, fill: showVoltage && !showOilTemp ? "#0369a1" : showOilTemp && !showVoltage ? "#dc2626" : "currentColor" }}
-                    stroke={showVoltage && !showOilTemp ? "#0369a1" : showOilTemp && !showVoltage ? "#dc2626" : "currentColor"}
+                    tick={{ fontSize: 11, fill: showVoltage ? "#0369a1" : "currentColor" }}
+                    stroke={showVoltage ? "#0369a1" : "currentColor"}
                     className="text-muted-foreground"
                     domain={["auto", "auto"]}
                   />
@@ -238,18 +234,6 @@ export function ReadingsChart({ transformerId }: { transformerId: number | null 
                     dot={false}
                     connectNulls
                     hide={!showCurrent}
-                    isAnimationActive={false}
-                  />
-                  <Line
-                    yAxisId="left"
-                    type="monotone"
-                    dataKey="oilTemp"
-                    name="Oil temp (°C)"
-                    stroke="#dc2626"
-                    strokeWidth={2}
-                    dot={false}
-                    connectNulls
-                    hide={!showOilTemp}
                     isAnimationActive={false}
                   />
                 </LineChart>

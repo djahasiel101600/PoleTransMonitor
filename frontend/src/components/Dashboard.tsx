@@ -3,12 +3,18 @@ import {
   fetchTransformers,
   fetchReadings,
   fetchAlerts,
+  fetchTransformerInsights,
 } from "../api/client";
 import { LiveMeters } from "./LiveMeters";
+import { TransformerInsights } from "./TransformerInsights";
 import { AlertsList } from "./AlertsList";
 import { ReadingsChart } from "./ReadingsChart";
+import { LoadByHourChart } from "./LoadByHourChart";
+import { LoadHeatmap } from "./LoadHeatmap";
+import { ConditionDonut } from "./ConditionDonut";
 import { CRITICAL_CONDITIONS, ConditionBadge } from "./ConditionBadge";
 import { useMonitorWebSocket } from "../hooks/useMonitorWebSocket";
+import { useTheme } from "../contexts/ThemeContext";
 import type { Transformer, Reading, Alert } from "../types";
 
 export function Dashboard() {
@@ -16,6 +22,8 @@ export function Dashboard() {
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [latestReading, setLatestReading] = useState<Reading | null>(null);
   const [alerts, setAlerts] = useState<Alert[]>([]);
+  const [insights24h, setInsights24h] = useState<Awaited<ReturnType<typeof fetchTransformerInsights>> | null>(null);
+  const [recentReadingsForSparkline, setRecentReadingsForSparkline] = useState<Reading[]>([]);
   const [loading, setLoading] = useState(true);
 
   const { reading: wsReading, connected } = useMonitorWebSocket(selectedId);
@@ -23,6 +31,7 @@ export function Dashboard() {
   const displayReading = wsReading ?? latestReading;
   const selectedTransformer = transformers.find((t) => t.id === selectedId);
   const isAtRisk = displayReading && CRITICAL_CONDITIONS.includes(displayReading.condition);
+  const { theme, toggleTheme } = useTheme();
 
   useEffect(() => {
     (async () => {
@@ -40,14 +49,21 @@ export function Dashboard() {
 
   useEffect(() => {
     if (selectedId == null) return;
+    setInsights24h(null);
+    setRecentReadingsForSparkline([]);
+    const since1h = new Date(Date.now() - 60 * 60 * 1000).toISOString();
     (async () => {
       try {
-        const [r, a] = await Promise.all([
+        const [r, a, insights, recent] = await Promise.all([
           fetchReadings(selectedId),
           fetchAlerts(selectedId),
+          fetchTransformerInsights(selectedId),
+          fetchReadings(selectedId, since1h),
         ]);
         setLatestReading(r[0] ?? null);
         setAlerts(a);
+        setInsights24h(insights);
+        setRecentReadingsForSparkline(recent);
       } catch (e) {
         console.error("Failed to fetch data:", e);
       }
@@ -56,115 +72,128 @@ export function Dashboard() {
 
   return (
     <div className="min-h-screen bg-background">
-      <header className="border-b border-border bg-card">
-        <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+      <header className="sticky top-0 z-10 border-b border-border/80 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+        <div className="mx-auto max-w-6xl px-4 py-4 sm:px-6 lg:px-8">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <h1 className="text-xl font-bold tracking-tight sm:text-2xl">
-                Pole Transformer Monitor
+            <div className="flex items-center gap-4">
+              <h1 className="text-lg font-semibold tracking-tight text-foreground">
+                Energy Monitor
               </h1>
-              <p className="mt-0.5 text-sm text-muted-foreground">
-                Real-time condition monitoring for distribution transformers
-              </p>
+              <select
+                aria-label="Select transformer"
+                value={selectedId ?? ""}
+                onChange={(e) => setSelectedId(Number(e.target.value) || null)}
+                className="rounded-md border border-border bg-transparent px-3 py-1.5 text-sm text-foreground outline-none focus:ring-2 focus:ring-primary/20 focus:ring-offset-0"
+              >
+                <option value="">Select…</option>
+                {transformers.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.name}
+                    {t.serial ? ` · ${t.serial}` : ""}
+                  </option>
+                ))}
+              </select>
             </div>
-            <div className="flex flex-wrap items-center gap-3">
-              <div className="flex flex-col gap-1 sm:flex-row sm:items-center">
-                <label
-                  htmlFor="transformer-select"
-                  className="text-sm font-medium text-muted-foreground"
-                >
-                  Transformer
-                </label>
-                <select
-                  id="transformer-select"
-                  value={selectedId ?? ""}
-                  onChange={(e) =>
-                    setSelectedId(Number(e.target.value) || null)
-                  }
-                  className="rounded-lg border border-border bg-background px-4 py-2.5 text-sm font-medium shadow-sm transition-colors focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
-                >
-                  <option value="">Select transformer...</option>
-                  {transformers.map((t) => (
-                    <option key={t.id} value={t.id}>
-                      {t.name} {t.serial ? `(${t.serial})` : ""}
-                    </option>
-                  ))}
-                </select>
-              </div>
+            <div className="flex items-center gap-3 text-sm text-muted-foreground">
+              <button
+                type="button"
+                onClick={toggleTheme}
+                aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+                className="rounded-md p-2 text-muted-foreground transition hover:bg-muted hover:text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:ring-offset-0"
+              >
+                {theme === "dark" ? (
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5">
+                    <path d="M12 3v2.25m6.364.386l-1.591 1.591M21 12h-2.25m-.386 6.364l-1.591-1.591M12 18.75V21m-4.773-4.227l-1.591 1.591M5.25 12H3m4.227-4.773L5.636 5.636M15.75 12a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0z" />
+                  </svg>
+                ) : (
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5">
+                    <path d="M21.752 15.002A9.718 9.718 0 0118 15.75c-5.385 0-9.75-4.365-9.75-9.75 0-1.33.266-2.597.748-3.752A9.753 9.753 0 003 11.25C3 16.635 7.365 21 12.75 21a9.753 9.753 0 009.002-5.998z" />
+                  </svg>
+                )}
+              </button>
               {selectedTransformer && (
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <span>
-                    {selectedTransformer.rated_kva} kVA
-                    {selectedTransformer.nominal_voltage ? (
-                      <> @ {selectedTransformer.nominal_voltage}V</>
-                    ) : null}
-                  </span>
-                  {selectedTransformer.site && (
-                    <>
-                      <span aria-hidden>·</span>
-                      <span>{selectedTransformer.site}</span>
-                    </>
-                  )}
-                </div>
-              )}
-              {connected ? (
-                <span className="inline-flex items-center gap-1.5 rounded-full bg-green-100 px-3 py-1.5 text-xs font-medium text-green-800 dark:bg-green-900/40 dark:text-green-400">
-                  <span
-                    className="h-2 w-2 rounded-full bg-green-500 animate-pulse-dot"
-                    aria-hidden
-                  />
-                  Live
-                </span>
-              ) : (
-                <span className="inline-flex items-center gap-1.5 rounded-full bg-muted px-3 py-1.5 text-xs font-medium text-muted-foreground">
-                  <span
-                    className="h-2 w-2 rounded-full bg-muted-foreground/50"
-                    aria-hidden
-                  />
-                  Offline
+                <span>
+                  {selectedTransformer.rated_kva} kVA
+                  {selectedTransformer.nominal_voltage ? ` @ ${selectedTransformer.nominal_voltage}V` : ""}
                 </span>
               )}
+              <span
+                className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium ${
+                  connected
+                    ? "bg-primary/10 text-primary"
+                    : "bg-muted text-muted-foreground"
+                }`}
+              >
+                <span
+                  className={`h-1.5 w-1.5 rounded-full ${
+                    connected ? "bg-primary animate-pulse-dot" : "bg-current opacity-50"
+                  }`}
+                  aria-hidden
+                />
+                {connected ? "Live" : "Offline"}
+              </span>
             </div>
           </div>
         </div>
       </header>
 
-      <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
-        {isAtRisk && (
-          <div
-            role="alert"
-            className="mb-6 flex items-center gap-3 rounded-lg border border-red-300 bg-red-50 px-4 py-3 dark:border-red-900/50 dark:bg-red-900/20"
-          >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              viewBox="0 0 24 24"
-              fill="currentColor"
-              className="h-5 w-5 shrink-0 text-red-600 dark:text-red-400"
-            >
-              <path
-                fillRule="evenodd"
-                d="M9.401 3.003c1.155-2 4.043-2 5.197 0l7.355 12.748c1.154 2-.29 4.5-2.599 4.5H4.645c-2.309 0-3.752-2.5-2.598-4.5L9.401 3.003zM12 8.25a.75.75 0 01.75.75v3.75a.75.75 0 01-1.5 0V9a.75.75 0 01.75-.75zm0 8.25a.75.75 0 100-1.5.75.75 0 000 1.5z"
-                clipRule="evenodd"
-              />
-            </svg>
-            <p className="flex flex-wrap items-center gap-2 text-sm font-medium text-red-800 dark:text-red-200">
-              Transformer at risk — current condition:
-              {displayReading?.condition && (
-                <ConditionBadge condition={displayReading.condition} />
-              )}
-            </p>
-          </div>
-        )}
+      <main className="flex gap-6 px-4 py-6 sm:px-6 lg:px-8">
+        <div className="min-w-0 flex-1 space-y-8">
+          <TransformerInsights
+            reading={displayReading}
+            transformer={selectedTransformer ?? null}
+            loading={loading}
+            insights24h={insights24h}
+          />
 
-        <div className="grid gap-6 lg:grid-cols-3">
-          <div className="lg:col-span-2">
-            <LiveMeters
-              reading={displayReading}
-              loading={loading}
-              transformer={selectedTransformer ?? null}
-            />
+          {isAtRisk && (
+            <div
+              role="alert"
+              className="flex items-center gap-3 rounded-lg border border-red-200 bg-red-50/80 px-4 py-3 dark:border-red-900/40 dark:bg-red-950/30"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 24 24"
+                fill="currentColor"
+                className="h-4 w-4 shrink-0 text-red-600 dark:text-red-400"
+              >
+                <path
+                  fillRule="evenodd"
+                  d="M9.401 3.003c1.155-2 4.043-2 5.197 0l7.355 12.748c1.154 2-.29 4.5-2.599 4.5H4.645c-2.309 0-3.752-2.5-2.598-4.5L9.401 3.003zM12 8.25a.75.75 0 01.75.75v3.75a.75.75 0 01-1.5 0V9a.75.75 0 01.75-.75zm0 8.25a.75.75 0 100-1.5.75.75 0 000 1.5z"
+                  clipRule="evenodd"
+                />
+              </svg>
+              <div className="flex flex-wrap items-center gap-2 text-sm text-red-800 dark:text-red-200">
+                At risk —
+                {displayReading?.condition && (
+                  <ConditionBadge condition={displayReading.condition} />
+                )}
+              </div>
+            </div>
+          )}
+
+          <LiveMeters
+            reading={displayReading}
+            loading={loading}
+            transformer={selectedTransformer ?? null}
+            recentReadings={recentReadingsForSparkline}
+          />
+
+          <ReadingsChart transformerId={selectedId} />
+
+          <div className="grid gap-8 lg:grid-cols-2">
+            <LoadByHourChart transformerId={selectedId} />
+            <ConditionDonut transformerId={selectedId} transformer={selectedTransformer ?? null} />
           </div>
-          <div className="flex flex-col">
+
+          <LoadHeatmap transformerId={selectedId} />
+        </div>
+
+        <aside
+          className="hidden w-full shrink-0 lg:block lg:w-80 xl:w-96"
+          aria-label="Alerts"
+        >
+          <div className="sticky top-[4.5rem] max-h-[calc(100vh-5rem)] overflow-y-auto">
             <AlertsList
               alerts={alerts}
               setAlerts={setAlerts}
@@ -172,12 +201,17 @@ export function Dashboard() {
               transformerId={selectedId}
             />
           </div>
-        </div>
-
-        <div className="mt-6">
-          <ReadingsChart transformerId={selectedId} />
-        </div>
+        </aside>
       </main>
+
+      <div className="border-t border-border/80 px-4 py-4 lg:hidden">
+        <AlertsList
+          alerts={alerts}
+          setAlerts={setAlerts}
+          loading={loading}
+          transformerId={selectedId}
+        />
+      </div>
     </div>
   );
 }

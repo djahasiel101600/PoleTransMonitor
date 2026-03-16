@@ -127,14 +127,14 @@ export function AlertsList({
 
   if (loading) {
     return (
-      <Card>
+      <Card className="border-border/80 shadow-none">
         <CardHeader>
-          <Skeleton className="h-6 w-24" />
+          <Skeleton className="h-5 w-20" />
         </CardHeader>
         <CardContent>
-          <div className="space-y-3">
+          <div className="space-y-2">
             {[...Array(3)].map((_, i) => (
-              <Skeleton key={`alert-skeleton-${i}`} className="h-16 w-full" />
+              <Skeleton key={`alert-skeleton-${i}`} className="h-14 w-full rounded-lg" />
             ))}
           </div>
         </CardContent>
@@ -143,13 +143,13 @@ export function AlertsList({
   }
 
   return (
-    <Card className="flex h-fit max-h-[min(70vh,800px)] flex-col overflow-hidden">
+    <Card className="flex h-fit max-h-[min(70vh,800px)] flex-col overflow-hidden border-border/80 shadow-none">
       <CardHeader className="flex-shrink-0 space-y-3 pb-2">
         <div className="flex flex-row items-center justify-between">
-          <CardTitle className="text-lg">Alerts</CardTitle>
+          <CardTitle className="text-base font-semibold">Alerts</CardTitle>
           {unacknowledgedCount > 0 && (
-            <span className="rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-900/40 dark:text-amber-400">
-              {unacknowledgedCount} new
+            <span className="rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-medium text-primary">
+              {unacknowledgedCount}
             </span>
           )}
         </div>
@@ -168,10 +168,10 @@ export function AlertsList({
               )}
             </p>
             <div className="flex flex-wrap items-center gap-2">
-              <div className="flex rounded-lg border border-border p-0.5">
+              <div className="flex rounded-md border border-border/80 p-0.5">
                 <button
                   onClick={() => handleFilterChange("all")}
-                  className={`rounded-md px-2.5 py-1 text-xs font-medium ${
+                  className={`rounded px-2 py-1 text-xs font-medium ${
                     filter === "all"
                       ? "bg-primary text-primary-foreground"
                       : "text-muted-foreground hover:bg-muted hover:text-foreground"
@@ -181,19 +181,19 @@ export function AlertsList({
                 </button>
                 <button
                   onClick={() => handleFilterChange("unacknowledged")}
-                  className={`rounded-md px-2.5 py-1 text-xs font-medium ${
+                  className={`rounded px-2 py-1 text-xs font-medium ${
                     filter === "unacknowledged"
                       ? "bg-primary text-primary-foreground"
                       : "text-muted-foreground hover:bg-muted hover:text-foreground"
                   }`}
                 >
-                  Unacknowledged
+                  New
                 </button>
               </div>
-              <div className="flex rounded-lg border border-border p-0.5">
+              <div className="flex rounded-md border border-border/80 p-0.5">
                 <button
                   onClick={() => setDensity("compact")}
-                  className={`rounded-md px-2 py-1 text-xs font-medium ${
+                  className={`rounded px-2 py-1 text-xs font-medium ${
                     density === "compact"
                       ? "bg-primary text-primary-foreground"
                       : "text-muted-foreground hover:bg-muted hover:text-foreground"
@@ -203,7 +203,7 @@ export function AlertsList({
                 </button>
                 <button
                   onClick={() => setDensity("detailed")}
-                  className={`rounded-md px-2 py-1 text-xs font-medium ${
+                  className={`rounded px-2 py-1 text-xs font-medium ${
                     density === "detailed"
                       ? "bg-primary text-primary-foreground"
                       : "text-muted-foreground hover:bg-muted hover:text-foreground"
@@ -287,7 +287,7 @@ export function AlertsList({
                   return (
                     <div
                       key={condition}
-                      className="rounded-lg border border-border bg-muted/20"
+                      className="rounded-lg border border-border/80 bg-muted/30"
                     >
                       <button
                         onClick={() => groupAlerts.length > 5 && toggleGroup(condition)}
