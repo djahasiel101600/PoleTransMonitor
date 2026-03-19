@@ -25,6 +25,54 @@ WiFiManager wm;  // library: config portal + WiFi connect
 Sim7600Manager sim7600;
 #endif
 
+// Persistent WiFiManager parameters.
+// These must outlive `setup()` because we may open the portal later via button long-press.
+static WiFiManagerParameter* pBackendUrlParam = nullptr;
+static WiFiManagerParameter* pTransformerIdParam = nullptr;
+static char transformerIdBuf[8];
+
+// Portal trigger via long-press button (active-low with INPUT_PULLUP).
+static unsigned long portalButtonPressedAtMs = 0;
+static bool waitingForPortalButtonRelease = false;
+
+static bool checkAndOpenPortalByLongPress() {
+  // Optional "cooldown": require button release before re-arming.
+  if (waitingForPortalButtonRelease) {
+    if (digitalRead(PORTAL_BUTTON_GPIO) != LOW) {
+      waitingForPortalButtonRelease = false;
+      portalButtonPressedAtMs = 0;
+    }
+    return false;
+  }
+
+  const bool pressed = (digitalRead(PORTAL_BUTTON_GPIO) == LOW);
+  if (!pressed) {
+    portalButtonPressedAtMs = 0;
+    return false;
+  }
+
+  if (portalButtonPressedAtMs == 0) {
+    portalButtonPressedAtMs = millis();
+    return false;
+  }
+
+  if (millis() - portalButtonPressedAtMs >= (unsigned long)PORTAL_LONG_PRESS_MS) {
+    Serial.println("Button long-press detected: opening config portal...");
+    wm.startConfigPortal("PoleTransMonitor-Setup", "config123");  // blocks until portal closes
+
+    // Reload settings in case user changed backend URL / transformer ID.
+    configMgr.load();
+    backendClient.begin(configMgr.getBackendUrl(), configMgr.getTransformerId());
+    Serial.println("Config portal closed.");
+
+    waitingForPortalButtonRelease = true;
+    portalButtonPressedAtMs = 0;
+    return true;
+  }
+
+  return false;
+}
+
 PzemReading pzemRead;
 float oilTempC = NAN;
 SensorData sensorData;
@@ -37,6 +85,8 @@ void setup() {
   Serial.begin(115200);
   delay(1000);
   Serial.println("PoleTransMonitor starting...");
+
+  pinMode(PORTAL_BUTTON_GPIO, INPUT_PULLUP);
 
   pzem.begin(16, 17);
   oilTemp.begin(5);
@@ -51,15 +101,25 @@ void setup() {
   evaluator.setParams(evalParams);
 
   configMgr.load();
-  char tidDefault[8];
-  snprintf(tidDefault, sizeof(tidDefault), "%d", configMgr.getTransformerId());
-  WiFiManagerParameter pBackendUrl("server", "Server URL (e.g. http://192.168.1.6:8000)", configMgr.getBackendUrl(), 128);
-  WiFiManagerParameter pTransformerId("tid", "Transformer ID", tidDefault, 8);
-  wm.addParameter(&pBackendUrl);
-  wm.addParameter(&pTransformerId);
-  wm.setSaveConfigCallback([&]() {
-    configMgr.setBackendUrl(pBackendUrl.getValue());
-    int tid = atoi(pTransformerId.getValue());
+
+  snprintf(transformerIdBuf, sizeof(transformerIdBuf), "%d", configMgr.getTransformerId());
+  pBackendUrlParam = new WiFiManagerParameter(
+      "server",
+      "Server URL (e.g. http://192.168.1.6:8000)",
+      configMgr.getBackendUrl(),
+      128);
+  pTransformerIdParam = new WiFiManagerParameter(
+      "tid",
+      "Transformer ID",
+      transformerIdBuf,
+      8);
+
+  wm.addParameter(pBackendUrlParam);
+  wm.addParameter(pTransformerIdParam);
+
+  wm.setSaveConfigCallback([]() {
+    configMgr.setBackendUrl(pBackendUrlParam->getValue());
+    int tid = atoi(pTransformerIdParam->getValue());
     if (tid > 0) configMgr.setTransformerId(tid);
     configMgr.save();
 #if DEBUG_SERIAL
@@ -110,6 +170,11 @@ void setup() {
 }
 
 void loop() {
+  // If the user long-presses the button, pause normal operation while portal is open.
+  if (checkAndOpenPortalByLongPress()) {
+    return;
+  }
+
   if (WiFi.status() != WL_CONNECTED) {
     static unsigned long lastReconnect = 0;
     if (millis() - lastReconnect >= 10000) {
@@ -117,6 +182,15 @@ void loop() {
       WiFi.reconnect();
     }
   }
+
+  // Sample/publish cycle gate. Keeping this non-blocking helps detect long-press reliably.
+  static unsigned long lastSampleMs = 0;
+  const unsigned long nowMs = millis();
+  if (nowMs - lastSampleMs < (unsigned long)SAMPLE_INTERVAL_MS) {
+    delay(20);
+    return;
+  }
+  lastSampleMs = nowMs;
 
   pzem.read(pzemRead);
   oilTemp.read(oilTempC);
@@ -244,5 +318,4 @@ void loop() {
 #endif
 #endif
 
-  delay(SAMPLE_INTERVAL_MS);
 }

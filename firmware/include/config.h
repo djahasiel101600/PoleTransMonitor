@@ -14,6 +14,13 @@
 #define BACKEND_URL "http://192.168.1.5:8000"
 #define TRANSFORMER_ID 1
 
+// ESP32 config portal trigger
+// Use a physical button wired to this GPIO and `GND`.
+// Logic assumes active-low with INPUT_PULLUP (pressed => LOW).
+#define PORTAL_BUTTON_GPIO 27
+// Hold button for this long (ms) to open the WiFiManager portal.
+#define PORTAL_LONG_PRESS_MS 3000
+
 // SIM A7670E SMS (set to 1 to enable)
 #define ENABLE_SIM 1
 #define SMS_RECIPIENT "+639922790155"
