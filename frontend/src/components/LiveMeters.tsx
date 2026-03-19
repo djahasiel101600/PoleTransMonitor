@@ -13,7 +13,7 @@ const CURRENT_RANGE = { min: 0, max: 500 };
 const POWER_RANGE = { min: 0, max: 100000 };
 const POWER_FACTOR_RANGE = { min: 0, max: 1.01 };
 const FREQUENCY_RANGE = { min: 45, max: 65 };
-const OIL_TEMP_RANGE = { min: -50, max: 200 };
+const ENERGY_KWH_RANGE = { min: 0, max: 999999 };
 
 function formatMeterValue(
   value: number | null | undefined,
@@ -34,12 +34,6 @@ function computeMeterStatus(
   if (value == null || Number.isNaN(value)) return "normal";
 
   switch (param) {
-    case "oil_temp": {
-      if (value < 50) return "normal";
-      if (value <= 75) return "normal";
-      if (value <= 90) return "warning";
-      return "critical";
-    }
     case "voltage": {
       const nominal = transformer?.nominal_voltage ?? 220;
       const low = nominal * 0.93;
@@ -78,6 +72,32 @@ function computeMeterStatus(
   }
 }
 
+function Sparkline({ values }: { values: number[] }) {
+  if (values.length < 2) return null;
+  const w = 40;
+  const h = 14;
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const range = max - min || 1;
+  const pts = values.map((v, i) => {
+    const x = (i / (values.length - 1)) * w;
+    const y = h - ((v - min) / range) * h;
+    return `${x},${y}`;
+  });
+  return (
+    <svg width={w} height={h} className="shrink-0 opacity-70" aria-hidden>
+      <polyline
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        points={pts.join(" ")}
+      />
+    </svg>
+  );
+}
+
 function MeterIcon({ name }: { name: string }) {
   const icons: Record<string, ReactElement> = {
     voltage: (
@@ -98,8 +118,8 @@ function MeterIcon({ name }: { name: string }) {
     frequency: (
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
     ),
-    temp: (
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3v18m0 0l-4-4m4 4l4-4M4 9l4 4 4-4 4 4" />
+    energy: (
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z" />
     ),
   };
   return (
@@ -117,6 +137,7 @@ const Meter = memo(function Meter({
   decimals = 2,
   icon,
   status = "normal",
+  sparklineValues,
 }: {
   label: string;
   value: number | null | undefined;
@@ -125,6 +146,7 @@ const Meter = memo(function Meter({
   decimals?: number;
   icon?: string;
   status?: MeterStatus;
+  sparklineValues?: number[];
 }) {
   const formatted = formatMeterValue(value, {
     ...validRange,
@@ -134,65 +156,79 @@ const Meter = memo(function Meter({
 
   const statusStyles =
     status === "critical"
-      ? "border-red-300 bg-red-50/50 dark:border-red-900/50 dark:bg-red-900/10"
+      ? "border-red-200 bg-red-50/50 dark:border-red-900/30 dark:bg-red-950/20"
       : status === "warning"
-        ? "border-amber-300 bg-amber-50/30 dark:border-amber-800/50 dark:bg-amber-900/5"
-        : "";
+        ? "border-amber-200 bg-amber-50/30 dark:border-amber-800/30 dark:bg-amber-950/10"
+        : "border-border/80 bg-card";
 
   return (
     <div
-      className={`flex items-start gap-3 rounded-lg border bg-muted/30 p-4 transition-colors hover:bg-muted/50 ${statusStyles}`}
+      className={`flex items-center gap-3 rounded-lg border p-3 ${statusStyles}`}
     >
       {icon && (
-        <div className="rounded-md bg-primary/10 p-2">
+        <span className="text-muted-foreground">
           <MeterIcon name={icon} />
-        </div>
+        </span>
       )}
-      <div className="min-w-0 flex-1 space-y-1">
-        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+      <div className="min-w-0 flex-1">
+        <p className="text-xs text-muted-foreground">
           {label}
           {status !== "normal" && hasValue && (
             <span
-              className={`ml-1.5 rounded px-1 py-0.5 text-[10px] font-medium ${
-                status === "critical"
-                  ? "bg-red-200 text-red-900 dark:bg-red-900/50 dark:text-red-200"
-                  : "bg-amber-200 text-amber-900 dark:bg-amber-900/50 dark:text-amber-200"
+              className={`ml-1.5 text-[10px] ${
+                status === "critical" ? "text-red-600 dark:text-red-400" : "text-amber-600 dark:text-amber-400"
               }`}
             >
-              {status === "critical" ? "Out of range" : "Warning"}
+              {status === "critical" ? "· Out of range" : "· Warning"}
             </span>
           )}
         </p>
-        <p
-          className={`text-xl font-semibold tabular-nums ${
-            hasValue ? "text-foreground" : "text-muted-foreground"
-          } ${status === "critical" && hasValue ? "text-red-700 dark:text-red-400" : ""} ${status === "warning" && hasValue ? "text-amber-700 dark:text-amber-400" : ""}`}
-        >
-          {hasValue ? `${formatted} ${unit}` : "--"}
-        </p>
+        <div className="mt-0.5 flex items-baseline gap-2">
+          <p
+            className={`text-lg font-semibold tabular-nums ${
+              hasValue ? "text-foreground" : "text-muted-foreground"
+            } ${status === "critical" && hasValue ? "text-red-700 dark:text-red-400" : ""} ${status === "warning" && hasValue ? "text-amber-700 dark:text-amber-400" : ""}`}
+          >
+            {hasValue ? `${formatted} ${unit}` : "--"}
+          </p>
+          {sparklineValues && sparklineValues.length >= 2 && (
+            <Sparkline values={sparklineValues} />
+          )}
+        </div>
       </div>
     </div>
   );
 });
 
+function getSparklineValues(readings: Reading[], key: keyof Reading): number[] {
+  const sorted = [...readings].sort(
+    (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+  );
+  return sorted
+    .map((r) => r[key])
+    .filter((v): v is number => v != null && !Number.isNaN(v));
+}
+
 export function LiveMeters({
   reading,
   loading,
   transformer = null,
+  recentReadings = [],
 }: {
   reading: Reading | null;
   loading?: boolean;
   transformer?: Transformer | null;
+  recentReadings?: Reading[];
 }) {
   if (loading) {
     return (
-      <Card>
-        <CardHeader>
-          <Skeleton className="h-6 w-32" />
+      <Card className="border-border/80 shadow-none">
+        <CardHeader className="pb-3">
+          <Skeleton className="h-5 w-24" />
         </CardHeader>
-        <CardContent className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <CardContent className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {[...Array(6)].map((_, i) => (
-            <Skeleton key={`meter-skeleton-${i}`} className="h-20" />
+            <Skeleton key={`meter-skeleton-${i}`} className="h-16 rounded-lg" />
           ))}
         </CardContent>
       </Card>
@@ -201,16 +237,16 @@ export function LiveMeters({
 
   if (!reading) {
     return (
-      <Card>
-        <CardContent className="flex flex-col items-center justify-center py-16 text-center">
-          <div className="mb-4 rounded-full bg-muted p-4">
+      <Card className="border-border/80 shadow-none">
+        <CardContent className="flex flex-col items-center justify-center py-14 text-center">
+          <div className="mb-3 rounded-full bg-muted p-3">
             <svg
               xmlns="http://www.w3.org/2000/svg"
               fill="none"
               viewBox="0 0 24 24"
               strokeWidth={1.5}
               stroke="currentColor"
-              className="h-10 w-10 text-muted-foreground"
+              className="h-8 w-8 text-muted-foreground"
             >
               <path
                 strokeLinecap="round"
@@ -219,9 +255,9 @@ export function LiveMeters({
               />
             </svg>
           </div>
-          <p className="text-sm font-medium text-foreground">No data yet</p>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Connect an ESP32 or wait for readings to appear
+          <p className="text-sm font-medium text-foreground">No data</p>
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            Waiting for readings
           </p>
         </CardContent>
       </Card>
@@ -229,17 +265,17 @@ export function LiveMeters({
   }
 
   return (
-    <Card>
-      <CardHeader className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+    <Card className="border-border/80 shadow-none">
+      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
         <div>
-          <CardTitle className="text-lg">Live Readings</CardTitle>
-          <p className="mt-1 text-xs text-muted-foreground">
-            Updated {formatRelativeTime(reading.timestamp)}
+          <CardTitle className="text-base font-semibold">Readings</CardTitle>
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            {formatRelativeTime(reading.timestamp)}
           </p>
         </div>
         <ConditionBadge condition={reading.condition} />
       </CardHeader>
-      <CardContent className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <CardContent className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         <Meter
           label="Voltage"
           value={reading.voltage}
@@ -247,6 +283,7 @@ export function LiveMeters({
           validRange={VOLTAGE_RANGE}
           icon="voltage"
           status={computeMeterStatus("voltage", reading.voltage ?? null, transformer)}
+          sparklineValues={getSparklineValues(recentReadings, "voltage")}
         />
         <Meter
           label="Current"
@@ -255,6 +292,16 @@ export function LiveMeters({
           validRange={CURRENT_RANGE}
           icon="current"
           status={computeMeterStatus("current", reading.current ?? null, transformer)}
+          sparklineValues={getSparklineValues(recentReadings, "current")}
+        />
+        <Meter
+          label="Real Power"
+          value={reading.real_power}
+          unit="W"
+          validRange={POWER_RANGE}
+          decimals={0}
+          icon="power"
+          status="normal"
         />
         <Meter
           label="Apparent Power"
@@ -264,6 +311,7 @@ export function LiveMeters({
           decimals={0}
           icon="power"
           status={computeMeterStatus("apparent_power", reading.apparent_power ?? null, transformer)}
+          sparklineValues={getSparklineValues(recentReadings, "apparent_power")}
         />
         <Meter
           label="Power Factor"
@@ -272,6 +320,7 @@ export function LiveMeters({
           validRange={POWER_FACTOR_RANGE}
           icon="pf"
           status={computeMeterStatus("power_factor", reading.power_factor ?? null, transformer)}
+          sparklineValues={getSparklineValues(recentReadings, "power_factor")}
         />
         <Meter
           label="Frequency"
@@ -280,14 +329,16 @@ export function LiveMeters({
           validRange={FREQUENCY_RANGE}
           icon="frequency"
           status={computeMeterStatus("frequency", reading.frequency ?? null, transformer)}
+          sparklineValues={getSparklineValues(recentReadings, "frequency")}
         />
         <Meter
-          label="Oil Temperature"
-          value={reading.oil_temp}
-          unit="°C"
-          validRange={OIL_TEMP_RANGE}
-          icon="temp"
-          status={computeMeterStatus("oil_temp", reading.oil_temp ?? null, transformer)}
+          label="Energy (kWh)"
+          value={reading.energy_kwh}
+          unit="kWh"
+          validRange={ENERGY_KWH_RANGE}
+          decimals={4}
+          icon="energy"
+          status="normal"
         />
       </CardContent>
     </Card>

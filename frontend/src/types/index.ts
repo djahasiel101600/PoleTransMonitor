@@ -18,9 +18,11 @@ export interface Reading {
   voltage: number | null;
   current: number | null;
   apparent_power: number | null;
+  real_power: number | null;
   power_factor: number | null;
   frequency: number | null;
   oil_temp: number | null;
+  energy_kwh: number | null;
   condition: Condition;
 }
 

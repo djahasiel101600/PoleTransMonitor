@@ -6,9 +6,11 @@ struct ReadingPayload {
   float voltage;
   float current;
   float apparentPower;
+  float realPower;   // Real power in watts (live wattage from PZEM)
   float powerFactor;
   float frequency;
   float oilTemp;
+  float energyKwh;  // Cumulative energy in kWh (PZEM since last reset)
   const char* condition;
 };
 

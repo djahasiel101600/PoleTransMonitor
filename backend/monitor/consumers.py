@@ -16,9 +16,11 @@ def broadcast_reading(reading):
             "voltage": reading.voltage,
             "current": reading.current,
             "apparent_power": reading.apparent_power,
+            "real_power": reading.real_power,
             "power_factor": reading.power_factor,
             "frequency": reading.frequency,
             "oil_temp": reading.oil_temp,
+            "energy_kwh": reading.energy_kwh,
             "condition": reading.condition,
         },
     }
