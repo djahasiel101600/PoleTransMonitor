@@ -29,6 +29,7 @@ export function EditTransformerDialog({
   const [ratedCurrent, setRatedCurrent] = useState<number>(68);
   const [site, setSite] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
+  const [isActive, setIsActive] = useState<boolean>(true);
 
   useEffect(() => {
     if (!open || !transformer) return;
@@ -42,6 +43,7 @@ export function EditTransformerDialog({
     setRatedCurrent(transformer.rated_current ?? 68);
     setSite(transformer.site ?? "");
     setPhoneNumber(transformer.phone_number ?? "");
+    setIsActive(transformer.is_active ?? true);
   }, [open, transformer]);
 
   if (!open || !transformer) return null;
@@ -61,6 +63,7 @@ export function EditTransformerDialog({
         rated_current: Number(ratedCurrent),
         site: site.trim().length ? site.trim() : null,
         phone_number: phoneNumber.trim().length ? phoneNumber.trim() : null,
+        is_active: isActive,
       };
 
       if (!payload.name) throw new Error("Transformer name is required");
@@ -83,6 +86,25 @@ export function EditTransformerDialog({
         </CardHeader>
         <CardContent>
           <form onSubmit={submit} className="space-y-3">
+            {isAdmin && (
+              <div className="space-y-1 rounded-md border border-border/80 bg-muted/20 p-3">
+                <label className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={isActive}
+                    onChange={(e) => setIsActive(e.target.checked)}
+                    className="h-4 w-4"
+                  />
+                  <span className="text-sm font-medium text-foreground">
+                    Device is {isActive ? "Active" : "Deactivated"}
+                  </span>
+                </label>
+                <p className="text-xs text-muted-foreground">
+                  When deactivated, the server rejects incoming readings and the ESP32 stops sending
+                  measurements until reactivated.
+                </p>
+              </div>
+            )}
             <div className="space-y-1">
               <label className="text-sm font-medium text-foreground">Name</label>
               <input

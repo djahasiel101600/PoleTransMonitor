@@ -7,6 +7,8 @@ export interface Transformer {
   rated_kva: number;
   rated_current: number;
   site: string | null;
+  /** Whether the ESP32 device is allowed to send readings */
+  is_active: boolean;
   /** SIM / modem phone number (optional), e.g. +639171234567 */
   phone_number?: string | null;
   /** Present for staff only; used as X-Device-Key on the ESP32 */
