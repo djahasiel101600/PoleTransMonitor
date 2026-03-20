@@ -86,8 +86,11 @@ if not _database_url:
 DATABASES = {
     "default": dj_database_url.parse(
         _database_url,
-        conn_max_age=600,
-        conn_health_checks=True,
+        # Heroku Postgres plans often have very low max connection counts.
+        # Close connections at the end of each request to avoid exhausting
+        # connections under concurrent load (REST + charts + websocket-related traffic).
+        conn_max_age=0 if IS_HEROKU else 600,
+        conn_health_checks=False if IS_HEROKU else True,
     )
 }
 
