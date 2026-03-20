@@ -89,6 +89,7 @@ bool BackendClient::fetchDeviceConfig(const char* deviceKey, ConfigManager& cm) 
   float rkva = doc["rated_kva"] | 0.0f;
   float ri = doc["rated_current"] | 0.0f;
   float rva = doc["rated_apparent_power_va"] | 0.0f;
+  bool isActive = doc["is_active"] | true;
 
   if (nv <= 0.0f || rkva <= 0.0f) {
 #if DEBUG_SERIAL
@@ -106,6 +107,7 @@ bool BackendClient::fetchDeviceConfig(const char* deviceKey, ConfigManager& cm) 
     ri = RATED_CURRENT;
   }
 
+  cm.setActive(isActive);
   cm.setCachedProfile(nv, nf, ri, rva);
   return true;
 }

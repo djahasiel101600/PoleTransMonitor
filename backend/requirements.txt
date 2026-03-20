@@ -8,3 +8,6 @@ channels-redis>=4.1
 daphne>=4.0
 redis>=5.0
 djangorestframework-simplejwt
+dj-database-url>=2.1
+psycopg2-binary>=2.9
+whitenoise>=6.6

@@ -9,4 +9,5 @@ router.register("alerts", views.AlertViewSet, basename="alert")
 
 urlpatterns = [
     path("", include(router.urls)),
+    path("health/", views.HealthView.as_view(), name="api_health"),
 ]

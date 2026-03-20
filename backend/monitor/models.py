@@ -17,6 +17,9 @@ class Transformer(models.Model):
         blank=True,
         help_text="SIM / modem phone number for SMS or identification (e.g. +639171234567)",
     )
+    # When deactivated, the device should stop sending readings to the backend.
+    # Server-side enforcement is done in the readings ingest endpoint.
+    is_active = models.BooleanField(default=True)
     # Per-transformer secret for ESP32 to fetch device_config (header X-Device-Key). Auto-generated if empty.
     device_api_key = models.CharField(max_length=64, blank=True, default="")
     created_at = models.DateTimeField(auto_now_add=True)

@@ -8,6 +8,7 @@ static const char* NVS_NAMESPACE = "ptm";
 static const char* KEY_URL = "backend_url";
 static const char* KEY_ID = "transformer_id";
 static const char* KEY_DKEY = "device_api_key";
+static const char* KEY_ACTIVE = "is_active";
 static const char* KEY_PROF_NV = "prof_nv";
 static const char* KEY_PROF_NF = "prof_nf";
 static const char* KEY_PROF_RI = "prof_ri";
@@ -21,6 +22,7 @@ void ConfigManager::load() {
     backendUrl_[URL_MAX - 1] = '\0';
     transformerId_ = TRANSFORMER_ID;
     deviceApiKey_[0] = '\0';
+    isActive_ = true;
     profileNominalV_ = NOMINAL_VOLTAGE;
     profileNominalF_ = NOMINAL_FREQUENCY;
     profileRatedI_ = RATED_CURRENT;
@@ -36,6 +38,8 @@ void ConfigManager::load() {
   String dk = prefs.getString(KEY_DKEY, "");
   strncpy(deviceApiKey_, dk.c_str(), DEVICE_KEY_MAX - 1);
   deviceApiKey_[DEVICE_KEY_MAX - 1] = '\0';
+
+  isActive_ = prefs.getBool(KEY_ACTIVE, true);
 
   if (prefs.getBool(KEY_PROF_OK, false)) {
     profileNominalV_ = prefs.getFloat(KEY_PROF_NV, NOMINAL_VOLTAGE);
@@ -59,6 +63,7 @@ void ConfigManager::saveProfileToNvs() {
   prefs.putFloat(KEY_PROF_RI, profileRatedI_);
   prefs.putFloat(KEY_PROF_RVA, profileRatedVa_);
   prefs.putBool(KEY_PROF_OK, true);
+  prefs.putBool(KEY_ACTIVE, isActive_);
   prefs.end();
 }
 
@@ -68,6 +73,7 @@ void ConfigManager::save() {
   prefs.putString(KEY_URL, backendUrl_);
   prefs.putInt(KEY_ID, transformerId_);
   prefs.putString(KEY_DKEY, deviceApiKey_);
+  prefs.putBool(KEY_ACTIVE, isActive_);
   prefs.putFloat(KEY_PROF_NV, profileNominalV_);
   prefs.putFloat(KEY_PROF_NF, profileNominalF_);
   prefs.putFloat(KEY_PROF_RI, profileRatedI_);
@@ -93,6 +99,12 @@ void ConfigManager::setDeviceApiKey(const char* key) {
   }
   strncpy(deviceApiKey_, key, DEVICE_KEY_MAX - 1);
   deviceApiKey_[DEVICE_KEY_MAX - 1] = '\0';
+}
+
+void ConfigManager::setActive(bool active) {
+  isActive_ = active;
+  // Persist so the device stays deactivated even if it temporarily loses WiFi.
+  save();
 }
 
 void ConfigManager::setCachedProfile(float nominalVoltage,

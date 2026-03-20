@@ -1,5 +1,7 @@
 import logging
 import secrets
+import os
+import time
 
 from rest_framework import viewsets, filters, status
 from rest_framework.decorators import action
@@ -133,6 +135,8 @@ class TransformerViewSet(viewsets.ModelViewSet):
                 "rated_kva": rkva,
                 "rated_current": ri,
                 "rated_apparent_power_va": round(rkva * 1000.0, 2),
+                # Firmware uses this to decide whether it should POST readings.
+                "is_active": bool(transformer.is_active),
             }
         )
 
@@ -201,6 +205,14 @@ class ReadingViewSet(viewsets.ModelViewSet):
                 request.data,
             )
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        transformer = serializer.validated_data.get("transformer")
+        if transformer is not None and not transformer.is_active:
+            return Response(
+                {"detail": "Device is deactivated. Readings are disabled for this transformer."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
         reading = serializer.save()
         if reading.condition != "normal":
             Alert.objects.create(
@@ -269,4 +281,68 @@ class MeView(APIView):
                 "is_staff": user.is_staff,
                 "is_superuser": user.is_superuser,
             }
+        )
+
+
+class HealthView(APIView):
+    """
+    Lightweight endpoint to verify the backend is up.
+
+    Useful for Heroku dyno health checks and for quickly validating that:
+    - Django loads successfully
+    - Database connection works
+    - Redis is reachable (so Channels WebSockets work)
+    """
+
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        checks = {}
+        overall_ok = True
+
+        # DB connectivity check
+        try:
+            from django.db import connection
+
+            with connection.cursor() as cursor:
+                cursor.execute("SELECT 1;")
+                cursor.fetchone()
+            checks["database"] = {"ok": True}
+        except Exception as e:
+            overall_ok = False
+            checks["database"] = {"ok": False, "error": str(e)}
+
+        # Redis connectivity check
+        try:
+            import redis
+            from django.conf import settings
+
+            redis_url = (
+                os.environ.get("REDIS_URL")
+                or settings.CHANNEL_LAYERS.get("default", {}).get("CONFIG", {}).get("hosts", [None])[0]
+            )
+            if not redis_url:
+                raise RuntimeError("REDIS_URL is not set")
+
+            # When Heroku Redis requires TLS, its cert chain may not be trusted
+            # by the dyno image. Option 1 disables certificate verification so
+            # Channels + health checks can connect.
+            if str(redis_url).startswith("rediss://"):
+                r = redis.Redis.from_url(redis_url, ssl_cert_reqs=None)
+            else:
+                r = redis.Redis.from_url(redis_url)
+            r.ping()
+            checks["redis"] = {"ok": True}
+        except Exception as e:
+            overall_ok = False
+            checks["redis"] = {"ok": False, "error": str(e)}
+
+        http_status = status.HTTP_200_OK if overall_ok else status.HTTP_503_SERVICE_UNAVAILABLE
+        return Response(
+            {
+                "status": "ok" if overall_ok else "degraded",
+                "checks": checks,
+                "timestamp": time.time(),
+            },
+            status=http_status,
         )

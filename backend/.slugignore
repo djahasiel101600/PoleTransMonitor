@@ -1,0 +1,6 @@
+# Keep secrets and dev cruft out of the Heroku slug
+.env
+*.pyc
+__pycache__/
+.venv/
+venv/

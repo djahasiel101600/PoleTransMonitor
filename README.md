@@ -17,8 +17,10 @@ cd backend
 python -m venv venv
 source venv/bin/activate  # Windows: venv\Scripts\activate
 pip install -r requirements.txt
+# PostgreSQL required — e.g. Docker:
+# docker run --name poletrans-pg -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=poletransmonitor -p 5432:5432 -d postgres:16
 cp .env.example .env
-# Edit .env (REDIS_URL, SECRET_KEY, etc.)
+# Edit .env (DATABASE_URL, REDIS_URL, SECRET_KEY, etc.)
 python manage.py migrate
 python manage.py createsuperuser  # optional
 python manage.py runserver
@@ -26,6 +28,8 @@ python manage.py runserver
 ```
 
 **Note:** Redis must be running for WebSocket support (`redis-server` or Docker).
+
+**Heroku:** See [`docs/DEPLOY_HEROKU_VERCEL.md`](docs/DEPLOY_HEROKU_VERCEL.md). The `backend/` folder includes `Procfile`, `runtime.txt`, Postgres via `DATABASE_URL`, and WhiteNoise for static files.
 
 ### Frontend
 

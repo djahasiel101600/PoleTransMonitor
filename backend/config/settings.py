@@ -2,6 +2,8 @@ import os
 from datetime import timedelta
 from pathlib import Path
 
+import dj_database_url
+from django.core.exceptions import ImproperlyConfigured
 from dotenv import load_dotenv
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -11,7 +13,16 @@ SECRET_KEY = os.environ.get("SECRET_KEY", "dev-secret-key-change-in-production")
 
 DEBUG = os.environ.get("DEBUG", "True").lower() == "true"
 
-ALLOWED_HOSTS = os.environ.get("ALLOWED_HOSTS", "localhost,127.0.0.1").split(",")
+# Heroku sets DYNO when running on the platform (used for production defaults).
+IS_HEROKU = "DYNO" in os.environ
+
+
+def _split_env_list(key: str, default: str) -> list[str]:
+    raw = os.environ.get(key, default)
+    return [item.strip() for item in raw.split(",") if item.strip()]
+
+
+ALLOWED_HOSTS = _split_env_list("ALLOWED_HOSTS", "localhost,127.0.0.1")
 
 INSTALLED_APPS = [
     "daphne",
@@ -29,6 +40,7 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
+    "whitenoise.middleware.WhiteNoiseMiddleware",
     "corsheaders.middleware.CorsMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
@@ -60,18 +72,39 @@ TEMPLATES = [
 
 WSGI_APPLICATION = "config.wsgi.application"
 
+# PostgreSQL only (Heroku Postgres sets DATABASE_URL automatically).
+_database_url = (os.environ.get("DATABASE_URL") or "").strip()
+if not _database_url:
+    raise ImproperlyConfigured(
+        "DATABASE_URL is required and must be a PostgreSQL URL, e.g. "
+        "postgres://USER:PASSWORD@HOST:PORT/DBNAME. "
+        "Heroku sets this when you attach the Postgres add-on. "
+        "For local development, run Postgres (e.g. Docker) and set DATABASE_URL in backend/.env — "
+        "see .env.example."
+    )
+
 DATABASES = {
-    "default": {
-        "ENGINE": "django.db.backends.sqlite3",
-        "NAME": BASE_DIR / "db.sqlite3",
-    }
+    "default": dj_database_url.parse(
+        _database_url,
+        conn_max_age=600,
+        conn_health_checks=True,
+    )
 }
 
 redis_url = os.environ.get("REDIS_URL", "redis://localhost:6379")
 CHANNEL_LAYERS = {
     "default": {
         "BACKEND": "channels_redis.core.RedisChannelLayer",
-        "CONFIG": {"hosts": [redis_url]},
+        # Heroku Redis often uses TLS with a certificate chain that isn't trusted
+        # by all dyno environments. Disabling cert verification lets Channels
+        # connect so WebSockets work.
+        "CONFIG": {
+            "hosts": [
+                {"address": redis_url, "ssl_cert_reqs": None}
+                if str(redis_url).startswith("rediss://")
+                else redis_url
+            ]
+        },
     }
 }
 
@@ -88,12 +121,31 @@ USE_I18N = True
 USE_TZ = True
 
 STATIC_URL = "static/"
+STATIC_ROOT = BASE_DIR / "staticfiles"
+
+STORAGES = {
+    "default": {
+        "BACKEND": "django.core.files.storage.FileSystemStorage",
+    },
+    "staticfiles": {
+        "BACKEND": "whitenoise.storage.CompressedStaticFilesStorage",
+    },
+}
+
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
-CORS_ALLOWED_ORIGINS = os.environ.get(
+CORS_ALLOWED_ORIGINS = _split_env_list(
     "CORS_ORIGINS",
     "http://localhost:5173,http://127.0.0.1:5173,http://192.168.1.6:5173",
-).split(",")
+)
+
+# HTTPS behind Heroku / other reverse proxies
+if not DEBUG or IS_HEROKU:
+    SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+
+if not DEBUG:
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
 
 REST_FRAMEWORK = {
     "DEFAULT_PERMISSION_CLASSES": ["rest_framework.permissions.AllowAny"],

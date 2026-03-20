@@ -19,6 +19,7 @@ class TransformerSerializer(serializers.ModelSerializer):
             "rated_current",
             "site",
             "phone_number",
+            "is_active",
             "device_api_key",
             "created_at",
         ]

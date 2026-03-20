@@ -8,6 +8,19 @@ This project uses **Django REST** for HTTP and **Django Channels** over **WebSoc
 
 **Heroku** can run the backend + Redis + Postgres; **Vercel** hosts the static Vite build. The browser talks to Heroku for both REST and WebSockets.
 
+### Fresh deploy (no SQLite / no data to move)
+
+You don’t need to migrate anything from SQLite—Heroku Postgres starts **empty**; the **release** phase runs `migrate` and creates tables.
+
+**Heroku (backend)** — in Dashboard or CLI:
+
+1. New app → connect repo → set **Root Directory** to `backend`.
+2. Add-ons: **Heroku Postgres** + **Heroku Redis** (or equivalent). `DATABASE_URL` and `REDIS_URL` are set for you.
+3. **Config Vars:** `SECRET_KEY` (long random string), `DEBUG=False`, `ALLOWED_HOSTS=your-app.herokuapp.com`, `CORS_ORIGINS=https://your-app.vercel.app` (your real Vercel URL).
+4. Deploy. Then once: `heroku run python manage.py createsuperuser -a your-app-name`.
+
+**Vercel (frontend):** Root `frontend`, build `npm run build`, output `dist`. Set `VITE_API_URL=https://your-app.herokuapp.com/api` and `VITE_WS_URL=wss://your-app.herokuapp.com`, then redeploy.
+
 ---
 
 ## Architecture (production)
@@ -23,43 +36,28 @@ ESP32 / devices
 Heroku dyno
   └─ Daphne (ASGI) + Django + Channels
        └─ Redis (channel layer)  ← required for WS fan-out
-       └─ Postgres (database)   ← use instead of SQLite on Heroku
+       └─ Postgres (database)   ← required (`DATABASE_URL`)
 ```
 
 ---
 
 ## Part 1 — Backend on Heroku
 
-### 1.1 Why not SQLite on Heroku?
+### 1.1 Database
 
-Heroku’s filesystem is **ephemeral**. SQLite would be wiped on dyno restart. Use **Heroku Postgres** and point Django at `DATABASE_URL`.
+The backend uses **PostgreSQL only** via **`DATABASE_URL`**. Heroku’s Postgres add-on sets this automatically. (SQLite is not supported.)
 
-### 1.2 Dependencies for Postgres (one-time code change)
+### 1.2 Postgres + static files (already in the repo)
 
-Add to `backend/requirements.txt` (versions can be adjusted):
+The backend is prepped for Heroku:
 
-```text
-dj-database-url>=2.1
-psycopg2-binary>=2.9
-```
+- **`requirements.txt`**: includes `dj-database-url`, `psycopg2-binary`, and **`whitenoise`** (serves Django admin static files in production).
+- **`config/settings.py`**: requires **`DATABASE_URL`** (PostgreSQL); parses it with `dj_database_url.parse(...)`.
+- **`Procfile`**: `web` runs **Daphne**; `release` runs **migrations**.
+- **`runtime.txt`**: Python version for Heroku.
+- **`.slugignore`**: excludes `.env` and dev cruft from the slug.
 
-In `backend/config/settings.py`, **replace** the current `DATABASES = { ... sqlite ... }` block with something like:
-
-```python
-import dj_database_url
-
-DATABASES = {
-    "default": dj_database_url.config(
-        default=f"sqlite:///{BASE_DIR / 'db.sqlite3'}",
-        conn_max_age=600,
-    )
-}
-```
-
-- Locally, without `DATABASE_URL`, you keep **SQLite**.
-- On Heroku, set `DATABASE_URL` automatically via the Postgres add-on; Django uses **Postgres**.
-
-Run migrations against Postgres after deploy (see below).
+Run migrations on each deploy via the **release** phase (see `Procfile`).
 
 ### 1.3 Redis add-on (required for WebSockets)
 
@@ -72,7 +70,7 @@ If your add-on provides **`rediss://`** (TLS), newer `channels-redis` / `redis` 
 
 ### 1.4 `Procfile` (ASGI on `$PORT`)
 
-Create **`backend/Procfile`** (no extension):
+**`backend/Procfile`** is already committed:
 
 ```procfile
 web: daphne -b 0.0.0.0 -p $PORT config.asgi:application
@@ -187,14 +185,58 @@ Update WiFi portal or `config.h` accordingly. Ensure **`ALLOWED_HOSTS`** and **`
 
 ## Quick reference commands
 
+### Heroku CLI (after [installing the CLI](https://devcenter.heroku.com/articles/heroku-cli))
+
+Replace `YOUR_APP` and URLs with your real names. **Monorepo:** in the Heroku app **Settings**, set **Root Directory** to `backend` (required for GitHub deploys). If you deploy with **`git push heroku`**, push from a setup where the **project root is `backend/`**, or use GitHub integration instead.
+
 ```bash
-# Heroku CLI: logs
-heroku logs --tail -a your-app-name
+heroku login
 
-# Run Django shell on Heroku
-heroku run python manage.py shell -a your-app-name
+# Create app (region optional)
+heroku create YOUR_APP
 
-# Local sanity: same as README — Redis + Daphne
+# Datastores (plan slugs change over time — pick an available Postgres + Redis tier in your account)
+heroku addons:create heroku-postgresql:essential-0 -a YOUR_APP
+heroku addons:create heroku-redis:mini -a YOUR_APP
+
+# App settings (generate your own SECRET_KEY; example uses Python)
+heroku config:set DEBUG=False -a YOUR_APP
+heroku config:set SECRET_KEY="paste-a-long-random-string" -a YOUR_APP
+heroku config:set ALLOWED_HOSTS=YOUR_APP.herokuapp.com -a YOUR_APP
+heroku config:set CORS_ORIGINS=https://YOUR_PROJECT.vercel.app -a YOUR_APP
+
+# Postgres/Redis URLs are usually set automatically by the add-ons — don’t overwrite unless you know why.
+
+# After a successful deploy (release phase runs migrations)
+heroku run python manage.py createsuperuser -a YOUR_APP
+
+# Operate
+heroku logs --tail -a YOUR_APP
+heroku run python manage.py shell -a YOUR_APP
+heroku ps -a YOUR_APP
+```
+
+Open the app: `heroku open -a YOUR_APP` (API root may 404 unless you added a route — try `/api/` or `/admin/`).
+
+### Vercel CLI (optional; Dashboard works too)
+
+```bash
+npm i -g vercel
+cd frontend
+vercel login
+vercel link    # follow prompts, set root to this folder if needed
+# Production env (Vite reads these at build time)
+vercel env add VITE_API_URL production      # e.g. https://YOUR_APP.herokuapp.com/api
+vercel env add VITE_WS_URL production       # e.g. wss://YOUR_APP.herokuapp.com
+vercel --prod
+```
+
+Or set **VITE_API_URL** / **VITE_WS_URL** under Project → Settings → Environment Variables in the Vercel Dashboard, then **Redeploy**.
+
+### Local sanity (not Heroku)
+
+```bash
+# From repo root, with Redis running and DATABASE_URL in backend/.env
 cd backend && daphne -b 0.0.0.0 -p 8000 config.asgi:application
 ```
 
