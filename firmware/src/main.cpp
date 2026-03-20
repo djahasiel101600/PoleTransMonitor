@@ -281,7 +281,7 @@ void loop() {
     sensorData.powerFactor, sensorData.frequency, sensorData.oilTemp, condition);
 #endif
 
-  if (WiFi.status() == WL_CONNECTED) {
+  if (WiFi.status() == WL_CONNECTED && configMgr.isActive()) {
     ReadingPayload payload = {
       .transformerId = configMgr.getTransformerId(),
       .voltage = sensorData.voltage,
@@ -308,8 +308,8 @@ void loop() {
 #endif
   }
 
-#if ENABLE_SIM
-  if (alertMgr.shouldSendSms(condition)) {
+  #if ENABLE_SIM
+  if (configMgr.isActive() && alertMgr.shouldSendSms(condition)) {
     char msg[128];
     snprintf(msg, sizeof(msg), "PoleTransMonitor ALERT: %s", condition);
     if (sim7600.sendSms(SMS_RECIPIENT, msg)) {
