@@ -6,7 +6,8 @@ import { Skeleton } from "./ui/Skeleton";
 import { formatRelativeTime } from "../lib/utils";
 import type { Reading, Transformer } from "../types";
 
-type MeterStatus = "normal" | "warning" | "critical";
+import { computeMeterStatus, type MeterStatus } from "../lib/energyStatus";
+
 
 const VOLTAGE_RANGE = { min: 0, max: 500 };
 const CURRENT_RANGE = { min: 0, max: 500 };
@@ -24,52 +25,6 @@ function formatMeterValue(
   if (opts?.max != null && value > opts.max) return "--";
   const decimals = opts?.decimals ?? 2;
   return `${value.toFixed(decimals)}`;
-}
-
-function computeMeterStatus(
-  param: string,
-  value: number | null,
-  transformer: Transformer | null
-): MeterStatus {
-  if (value == null || Number.isNaN(value)) return "normal";
-
-  switch (param) {
-    case "voltage": {
-      const nominal = transformer?.nominal_voltage ?? 220;
-      const low = nominal * 0.93;
-      const high = nominal * 1.07;
-      if (value >= low && value <= high) return "normal";
-      return "critical";
-    }
-    case "current": {
-      const rated = transformer?.rated_current ?? 100;
-      const pct = (value / rated) * 100;
-      if (pct <= 100) return "normal";
-      if (pct <= 125) return "warning";
-      return "critical";
-    }
-    case "apparent_power": {
-      const ratedVA = transformer ? transformer.rated_kva * 1000 : 15000;
-      const pct = (value / ratedVA) * 100;
-      if (pct <= 100) return "normal";
-      if (pct <= 125) return "warning";
-      return "critical";
-    }
-    case "frequency": {
-      const nominal = transformer?.nominal_freq ?? 50;
-      const diff = Math.abs(value - nominal);
-      if (diff <= 1) return "normal";
-      if (diff <= 2) return "warning";
-      return "critical";
-    }
-    case "power_factor": {
-      if (value >= 0.85) return "normal";
-      if (value >= 0.7) return "warning";
-      return "critical";
-    }
-    default:
-      return "normal";
-  }
 }
 
 function Sparkline({ values }: { values: number[] }) {
