@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Transformer, Reading, Alert
+from .models import Transformer, Reading, Alert, SmsRecipient
 
 
 @admin.register(Transformer)
@@ -25,3 +25,9 @@ class ReadingAdmin(admin.ModelAdmin):
 class AlertAdmin(admin.ModelAdmin):
     list_display = ["transformer", "timestamp", "condition", "sms_sent", "acknowledged"]
     list_filter = ["transformer", "condition", "acknowledged"]
+
+
+@admin.register(SmsRecipient)
+class SmsRecipientAdmin(admin.ModelAdmin):
+    list_display = ["owner_name", "phone_number", "created_at"]
+    search_fields = ["owner_name", "phone_number"]

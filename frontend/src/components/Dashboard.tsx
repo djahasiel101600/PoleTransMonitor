@@ -24,6 +24,7 @@ import { AddTransformerDialog } from "./AddTransformerDialog";
 import { EditTransformerDialog } from "./EditTransformerDialog";
 import { DeleteTransformerDialog } from "./DeleteTransformerDialog";
 import { TransformerManagementList } from "./TransformerManagementList";
+import { ContactsScreen } from "./ContactsScreen";
 
 export function Dashboard() {
   const [transformers, setTransformers] = useState<Transformer[]>([]);
@@ -47,6 +48,7 @@ export function Dashboard() {
   const [showAddTransformer, setShowAddTransformer] = useState(false);
   const [transformerQuery, setTransformerQuery] = useState("");
   const [showTransformerManagement, setShowTransformerManagement] = useState(true);
+  const [showContactsScreen, setShowContactsScreen] = useState(false);
 
   const [editTransformer, setEditTransformer] = useState<Transformer | null>(null);
   const [showEditTransformer, setShowEditTransformer] = useState(false);
@@ -318,9 +320,27 @@ export function Dashboard() {
                       <CardTitle className="text-base font-semibold">Transformer Management</CardTitle>
                       <div className="text-xs text-muted-foreground">CRUD operations (admin only)</div>
                     </div>
-                    <Button type="button" variant="outline" size="sm" onClick={() => setShowTransformerManagement(false)}>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setShowContactsScreen(true);
+                          setShowTransformerManagement(false);
+                        }}
+                      >
+                        Contacts
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setShowTransformerManagement(false)}
+                      >
                       Collapse
-                    </Button>
+                      </Button>
+                    </div>
                   </CardHeader>
                   <CardContent>
                     <div className="flex flex-col gap-3">
@@ -354,6 +374,24 @@ export function Dashboard() {
                     </div>
                   </CardContent>
                 </Card>
+              )}
+
+              {isAdmin && showContactsScreen && (
+                <div>
+                  <ContactsScreen />
+                  <div className="pt-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => {
+                        setShowContactsScreen(false);
+                        setShowTransformerManagement(true);
+                      }}
+                    >
+                      Back to Transformer Management
+                    </Button>
+                  </div>
+                </div>
               )}
 
               {isAdmin && !showTransformerManagement && (

@@ -9,10 +9,23 @@ export interface Transformer {
   site: string | null;
   /** Whether the ESP32 device is allowed to send readings */
   is_active: boolean;
+  /** Staff-only list of SMS recipients assigned to this transformer */
+  sms_recipients?: Array<{
+    id: number;
+    owner_name: string;
+    phone_number: string;
+  }>;
   /** SIM / modem phone number (optional), e.g. +639171234567 */
   phone_number?: string | null;
   /** Present for staff only; used as X-Device-Key on the ESP32 */
   device_api_key?: string | null;
+  created_at: string;
+}
+
+export interface SmsRecipient {
+  id: number;
+  owner_name: string;
+  phone_number: string;
   created_at: string;
 }
 

@@ -3,6 +3,25 @@ import secrets
 from django.db import models
 
 
+class SmsRecipient(models.Model):
+    """
+    Reusable SMS recipient contact.
+
+    Uniqueness is enforced by `phone_number` so the same number can be reused
+    across multiple transformers.
+    """
+
+    owner_name = models.CharField(max_length=120)
+    phone_number = models.CharField(max_length=32, unique=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["owner_name", "phone_number"]
+
+    def __str__(self) -> str:
+        return f"{self.owner_name} ({self.phone_number})"
+
+
 class Transformer(models.Model):
     name = models.CharField(max_length=100)
     serial = models.CharField(max_length=50, unique=True, null=True, blank=True)
@@ -16,6 +35,12 @@ class Transformer(models.Model):
         null=True,
         blank=True,
         help_text="SIM / modem phone number for SMS or identification (e.g. +639171234567)",
+    )
+    # Phone numbers to receive SMS alerts for this transformer.
+    # Contacts are reusable across transformers; uniqueness is enforced on
+    # SmsRecipient.phone_number.
+    sms_recipients = models.ManyToManyField(
+        "SmsRecipient", related_name="transformers", blank=True
     )
     # When deactivated, the device should stop sending readings to the backend.
     # Server-side enforcement is done in the readings ingest endpoint.

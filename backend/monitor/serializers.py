@@ -1,11 +1,18 @@
 from rest_framework import serializers
-from .models import Transformer, Reading, Alert
+from .models import Transformer, Reading, Alert, SmsRecipient
 
 
 class TransformerSerializer(serializers.ModelSerializer):
     """Staff users see `device_api_key` (for ESP32 portal setup); others get null."""
 
     device_api_key = serializers.SerializerMethodField()
+    sms_recipients = serializers.SerializerMethodField()
+    # Write-only list of SmsRecipient ids for staff updates.
+    sms_recipients_ids = serializers.ListField(
+        child=serializers.IntegerField(min_value=1),
+        write_only=True,
+        required=False,
+    )
 
     class Meta:
         model = Transformer
@@ -20,6 +27,8 @@ class TransformerSerializer(serializers.ModelSerializer):
             "site",
             "phone_number",
             "is_active",
+            "sms_recipients",
+            "sms_recipients_ids",
             "device_api_key",
             "created_at",
         ]
@@ -30,6 +39,64 @@ class TransformerSerializer(serializers.ModelSerializer):
         if request and request.user.is_authenticated and request.user.is_staff:
             return obj.device_api_key
         return None
+
+    def get_sms_recipients(self, obj):
+        request = self.context.get("request")
+        if not request or not request.user.is_authenticated or not request.user.is_staff:
+            return []
+        return [
+            {
+                "id": r.id,
+                "owner_name": r.owner_name,
+                "phone_number": r.phone_number,
+            }
+            for r in obj.sms_recipients.all()
+        ]
+
+    def update(self, instance, validated_data):
+        sms_recipient_ids = validated_data.pop("sms_recipients_ids", None)
+        instance = super().update(instance, validated_data)
+
+        if sms_recipient_ids is not None:
+            unique_ids = sorted(set(sms_recipient_ids))
+            recipients_qs = SmsRecipient.objects.filter(id__in=unique_ids)
+            if recipients_qs.count() != len(unique_ids):
+                raise serializers.ValidationError(
+                    {"sms_recipients_ids": "One or more recipient ids are invalid."}
+                )
+            instance.sms_recipients.set(recipients_qs)
+
+        return instance
+
+
+class SmsRecipientSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = SmsRecipient
+        fields = [
+            "id",
+            "owner_name",
+            "phone_number",
+            "created_at",
+        ]
+        read_only_fields = ["id", "created_at"]
+
+    def validate_phone_number(self, value: str) -> str:
+        # Normalize for stable uniqueness checks.
+        v = value.strip().replace(" ", "").replace("-", "")
+        if not v:
+            raise serializers.ValidationError("Phone number is required.")
+        if not v.startswith("+"):
+            v = "+" + v
+
+        # Option 2: reject duplicates; do not upsert.
+        qs = SmsRecipient.objects.filter(phone_number=v)
+        if self.instance is not None:
+            qs = qs.exclude(id=self.instance.id)
+        if qs.exists():
+            raise serializers.ValidationError(
+                "A contact with this phone number already exists. Please select the existing contact."
+            )
+        return v
 
 
 class ReadingSerializer(serializers.ModelSerializer):

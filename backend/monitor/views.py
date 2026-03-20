@@ -14,7 +14,7 @@ from django.utils import timezone
 from django.db.models import Max, Min
 from datetime import timedelta
 
-from .models import Transformer, Reading, Alert
+from .models import Transformer, Reading, Alert, SmsRecipient
 
 logger = logging.getLogger(__name__)
 from .serializers import (
@@ -22,6 +22,7 @@ from .serializers import (
     ReadingSerializer,
     ReadingCreateSerializer,
     AlertSerializer,
+    SmsRecipientSerializer,
 )
 from .consumers import broadcast_reading
 
@@ -137,6 +138,10 @@ class TransformerViewSet(viewsets.ModelViewSet):
                 "rated_apparent_power_va": round(rkva * 1000.0, 2),
                 # Firmware uses this to decide whether it should POST readings.
                 "is_active": bool(transformer.is_active),
+                # Firmware uses this to send SMS alerts.
+                "sms_recipients": [
+                    r.phone_number for r in transformer.sms_recipients.all()
+                ],
             }
         )
 
@@ -175,6 +180,12 @@ class TransformerViewSet(viewsets.ModelViewSet):
             "peak_load_24h_kva": peak_load_kva,
             "energy_24h_kwh": energy_24h_kwh,
         })
+
+
+class SmsRecipientViewSet(viewsets.ModelViewSet):
+    queryset = SmsRecipient.objects.all().order_by("owner_name", "phone_number")
+    serializer_class = SmsRecipientSerializer
+    permission_classes = [IsAuthenticated, IsAdminUser]
 
 
 class ReadingViewSet(viewsets.ModelViewSet):

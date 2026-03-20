@@ -160,6 +160,7 @@ export type CreateTransformerPayload = {
   site?: string | null;
   phone_number?: string | null;
   is_active?: boolean;
+  sms_recipients_ids?: number[];
 };
 
 export async function createTransformer(payload: CreateTransformerPayload) {
@@ -195,6 +196,48 @@ export async function deleteTransformer(transformerId: number) {
   if (!res.ok) {
     const text = await res.text().catch(() => "");
     throw new Error(text || "Failed to delete transformer");
+  }
+  return true;
+}
+
+export interface CreateContactPayload {
+  owner_name: string;
+  phone_number: string;
+}
+
+export async function fetchContacts() {
+  const res = await authFetch(`${API_BASE}/contacts/`, {});
+  if (!res.ok) throw new Error("Failed to fetch contacts");
+  return res.json() as Promise<
+    Array<{ id: number; owner_name: string; phone_number: string; created_at: string }>
+  >;
+}
+
+export async function createContact(payload: CreateContactPayload) {
+  const res = await authFetch(`${API_BASE}/contacts/`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(text || "Failed to create contact");
+  }
+  return res.json() as Promise<{
+    id: number;
+    owner_name: string;
+    phone_number: string;
+    created_at: string;
+  }>;
+}
+
+export async function deleteContact(contactId: number) {
+  const res = await authFetch(`${API_BASE}/contacts/${contactId}/`, {
+    method: "DELETE",
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(text || "Failed to delete contact");
   }
   return true;
 }

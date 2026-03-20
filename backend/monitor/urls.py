@@ -6,6 +6,7 @@ router = DefaultRouter()
 router.register("transformers", views.TransformerViewSet, basename="transformer")
 router.register("readings", views.ReadingViewSet, basename="reading")
 router.register("alerts", views.AlertViewSet, basename="alert")
+router.register("contacts", views.SmsRecipientViewSet, basename="contact")
 
 urlpatterns = [
     path("", include(router.urls)),

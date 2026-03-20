@@ -13,6 +13,7 @@ class ConfigManager {
  public:
   static const size_t URL_MAX = 128;
   static const size_t DEVICE_KEY_MAX = 96;
+  static const size_t SMS_RECIPIENTS_CSV_MAX = 256;
 
   void load();
   void save();
@@ -21,11 +22,13 @@ class ConfigManager {
   int getTransformerId() const { return transformerId_; }
   const char* getDeviceApiKey() const { return deviceApiKey_; }
   bool isActive() const { return isActive_; }
+  const char* getSmsRecipientsCsv() const { return smsRecipientsCsv_; }
 
   void setBackendUrl(const char* url);
   void setTransformerId(int id);
   void setDeviceApiKey(const char* key);
   void setActive(bool active);
+  void setSmsRecipientsCsv(const char* csv);
 
   /** After successful HTTP device_config fetch — persists profile to NVS. */
   void setCachedProfile(float nominalVoltage,
@@ -42,6 +45,7 @@ class ConfigManager {
   char deviceApiKey_[DEVICE_KEY_MAX];
   int transformerId_ = 1;
   bool isActive_ = true;
+  char smsRecipientsCsv_[SMS_RECIPIENTS_CSV_MAX] = {0};
 
   float profileNominalV_ = 230.0f;
   float profileNominalF_ = 60.0f;

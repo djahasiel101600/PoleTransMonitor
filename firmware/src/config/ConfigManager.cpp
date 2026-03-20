@@ -23,6 +23,7 @@ void ConfigManager::load() {
     transformerId_ = TRANSFORMER_ID;
     deviceApiKey_[0] = '\0';
     isActive_ = true;
+    smsRecipientsCsv_[0] = '\0';
     profileNominalV_ = NOMINAL_VOLTAGE;
     profileNominalF_ = NOMINAL_FREQUENCY;
     profileRatedI_ = RATED_CURRENT;
@@ -40,6 +41,7 @@ void ConfigManager::load() {
   deviceApiKey_[DEVICE_KEY_MAX - 1] = '\0';
 
   isActive_ = prefs.getBool(KEY_ACTIVE, true);
+  smsRecipientsCsv_[0] = '\0';
 
   if (prefs.getBool(KEY_PROF_OK, false)) {
     profileNominalV_ = prefs.getFloat(KEY_PROF_NV, NOMINAL_VOLTAGE);
@@ -105,6 +107,16 @@ void ConfigManager::setActive(bool active) {
   isActive_ = active;
   // Persist so the device stays deactivated even if it temporarily loses WiFi.
   save();
+}
+
+void ConfigManager::setSmsRecipientsCsv(const char* csv) {
+  if (!csv || !csv[0]) {
+    smsRecipientsCsv_[0] = '\0';
+    return;
+  }
+
+  strncpy(smsRecipientsCsv_, csv, SMS_RECIPIENTS_CSV_MAX - 1);
+  smsRecipientsCsv_[SMS_RECIPIENTS_CSV_MAX - 1] = '\0';
 }
 
 void ConfigManager::setCachedProfile(float nominalVoltage,

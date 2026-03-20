@@ -75,7 +75,7 @@ bool BackendClient::fetchDeviceConfig(const char* deviceKey, ConfigManager& cm) 
   String payload = http.getString();
   http.end();
 
-  StaticJsonDocument<384> doc;
+  StaticJsonDocument<768> doc;
   DeserializationError err = deserializeJson(doc, payload);
   if (err) {
 #if DEBUG_SERIAL
@@ -105,6 +105,29 @@ bool BackendClient::fetchDeviceConfig(const char* deviceKey, ConfigManager& cm) 
   }
   if (ri <= 0.0f) {
     ri = RATED_CURRENT;
+  }
+
+  // SMS recipients come from backend device_config.
+  // Firmware expects a CSV string so it can iterate recipients on alert.
+  {
+    char csv[ConfigManager::SMS_RECIPIENTS_CSV_MAX];
+    csv[0] = '\0';
+    size_t off = 0;
+
+    JsonArray rec = doc["sms_recipients"].as<JsonArray>();
+    if (!rec.isNull()) {
+      for (size_t i = 0; i < rec.size(); i++) {
+        const char* p = rec[i].as<const char*>();
+        if (!p || !p[0]) continue;
+        if (off > 0) {
+          off += snprintf(csv + off, sizeof(csv) - off, ",");
+        }
+        off += snprintf(csv + off, sizeof(csv) - off, "%s", p);
+        if (off >= sizeof(csv)) break;
+      }
+    }
+
+    cm.setSmsRecipientsCsv(csv);
   }
 
   cm.setActive(isActive);

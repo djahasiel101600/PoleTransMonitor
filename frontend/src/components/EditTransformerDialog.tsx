@@ -1,7 +1,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/Card";
 import { Button } from "./ui/Button";
-import { type CreateTransformerPayload, updateTransformer } from "../api/client";
+import { fetchContacts, type CreateTransformerPayload, updateTransformer } from "../api/client";
 import { useAuth } from "../contexts/AuthContext";
 import type { Transformer } from "../types";
 
@@ -30,6 +30,11 @@ export function EditTransformerDialog({
   const [site, setSite] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
   const [isActive, setIsActive] = useState<boolean>(true);
+  const [contacts, setContacts] = useState<
+    Array<{ id: number; owner_name: string; phone_number: string }>
+  >([]);
+  const [selectedRecipientIds, setSelectedRecipientIds] = useState<number[]>([]);
+  const [contactsLoading, setContactsLoading] = useState(false);
 
   useEffect(() => {
     if (!open || !transformer) return;
@@ -44,7 +49,19 @@ export function EditTransformerDialog({
     setSite(transformer.site ?? "");
     setPhoneNumber(transformer.phone_number ?? "");
     setIsActive(transformer.is_active ?? true);
+    setSelectedRecipientIds(
+      (transformer.sms_recipients ?? []).map((r) => r.id)
+    );
   }, [open, transformer]);
+
+  useEffect(() => {
+    if (!open || !isAdmin) return;
+    setContactsLoading(true);
+    void fetchContacts()
+      .then((cs) => setContacts(cs))
+      .catch((e) => setError(e instanceof Error ? e.message : "Failed to load contacts"))
+      .finally(() => setContactsLoading(false));
+  }, [open, isAdmin]);
 
   if (!open || !transformer) return null;
 
@@ -64,6 +81,7 @@ export function EditTransformerDialog({
         site: site.trim().length ? site.trim() : null,
         phone_number: phoneNumber.trim().length ? phoneNumber.trim() : null,
         is_active: isActive,
+        sms_recipients_ids: selectedRecipientIds,
       };
 
       if (!payload.name) throw new Error("Transformer name is required");
@@ -135,6 +153,79 @@ export function EditTransformerDialog({
               />
               <p className="text-xs text-muted-foreground">SIM / modem MSISDN for SMS or device identification</p>
             </div>
+
+            {isAdmin && (
+              <div className="space-y-2 rounded-md border border-border/80 bg-muted/10 p-3">
+                <div className="flex items-center justify-between gap-3">
+                  <label className="text-sm font-medium text-foreground">
+                    Alert recipients
+                  </label>
+                  {contactsLoading && (
+                    <span className="text-xs text-muted-foreground">Loading…</span>
+                  )}
+                </div>
+
+                <div className="flex flex-wrap gap-2">
+                  {selectedRecipientIds.length === 0 ? (
+                    <span className="text-xs text-muted-foreground">No recipients selected.</span>
+                  ) : (
+                    contacts
+                      .filter((c) => selectedRecipientIds.includes(c.id))
+                      .map((c) => (
+                        <span
+                          key={c.id}
+                          className="inline-flex items-center gap-2 rounded-full border border-border/80 bg-background px-3 py-1 text-xs"
+                        >
+                          {c.owner_name} — {c.phone_number}
+                          <button
+                            type="button"
+                            aria-label={`Remove recipient ${c.phone_number}`}
+                            className="text-muted-foreground hover:text-foreground"
+                            onClick={() =>
+                              setSelectedRecipientIds((prev) =>
+                                prev.filter((id) => id !== c.id)
+                              )
+                            }
+                          >
+                            ×
+                          </button>
+                        </span>
+                      ))
+                  )}
+                </div>
+
+                <div className="max-h-48 overflow-y-auto space-y-2">
+                  {contacts.map((c) => {
+                    const checked = selectedRecipientIds.includes(c.id);
+                    return (
+                      <label
+                        key={c.id}
+                        className="flex cursor-pointer items-start gap-3 rounded-md border border-border/60 bg-background/70 px-3 py-2"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={(e) => {
+                            const on = e.target.checked;
+                            setSelectedRecipientIds((prev) =>
+                              on ? [...prev, c.id] : prev.filter((id) => id !== c.id)
+                            );
+                          }}
+                        />
+                        <div className="min-w-0">
+                          <div className="text-sm font-medium text-foreground">
+                            {c.owner_name}
+                          </div>
+                          <div className="text-xs text-muted-foreground truncate">
+                            {c.phone_number}
+                          </div>
+                        </div>
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
 
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">

@@ -312,12 +312,50 @@ void loop() {
   if (configMgr.isActive() && alertMgr.shouldSendSms(condition)) {
     char msg[128];
     snprintf(msg, sizeof(msg), "PoleTransMonitor ALERT: %s", condition);
-    if (sim7600.sendSms(SMS_RECIPIENT, msg)) {
-      Serial.printf("SMS sent to %s: %s\n", SMS_RECIPIENT, condition);
+    bool anyOk = false;
+
+    const char* csv = configMgr.getSmsRecipientsCsv();
+    if (csv && csv[0]) {
+      const size_t RECIP_MAX = 40;
+      char recipient[RECIP_MAX];
+
+      const char* p = csv;
+      while (*p) {
+        // Skip separators/whitespace
+        while (*p == ',' || *p == ' ' || *p == '\t' || *p == '\r' || *p == '\n') p++;
+        if (!*p) break;
+
+        size_t n = 0;
+        while (*p && *p != ',' && n < RECIP_MAX - 1) {
+          recipient[n++] = *p++;
+        }
+        recipient[n] = '\0';
+
+        // Trim trailing whitespace
+        while (n > 0 && (recipient[n - 1] == ' ' || recipient[n - 1] == '\t')) {
+          recipient[n - 1] = '\0';
+          n--;
+        }
+
+        if (recipient[0] && sim7600.sendSms(recipient, msg)) {
+          Serial.printf("SMS sent to %s: %s\n", recipient, condition);
+          anyOk = true;
+        }
+
+        // Move past comma if present
+        if (*p == ',') p++;
+      }
     } else {
-      Serial.printf("SMS failed for %s\n", condition);
+      // Fallback to compile-time recipient if backend has none selected.
+      if (sim7600.sendSms(SMS_RECIPIENT, msg)) {
+        Serial.printf("SMS sent to %s: %s\n", SMS_RECIPIENT, condition);
+        anyOk = true;
+      } else {
+        Serial.printf("SMS failed for %s\n", condition);
+      }
     }
-    alertMgr.markSent(condition);
+
+    if (anyOk) alertMgr.markSent(condition);
   }
 
 #if defined(ENABLE_SMS_STATUS_REPLY) && ENABLE_SMS_STATUS_REPLY
