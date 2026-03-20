@@ -77,7 +77,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (!accessToken) return;
-    void refreshMe();
+    queueMicrotask(() => void refreshMe());
   }, [accessToken, refreshMe]);
 
   const login = async (username: string, password: string) => {

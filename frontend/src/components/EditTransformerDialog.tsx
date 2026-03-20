@@ -1,6 +1,13 @@
 import { useEffect, useState, type FormEvent } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "./ui/Card";
+import { Card, CardContent, CardHeader } from "./ui/Card";
 import { Button } from "./ui/Button";
+import {
+  Dialog,
+  DialogContent,
+  DialogOverlay,
+  DialogPortal,
+  DialogTitle,
+} from "./ui/Dialog";
 import { fetchContacts, type CreateTransformerPayload, updateTransformer } from "../api/client";
 import { useAuth } from "../contexts/AuthContext";
 import type { Transformer } from "../types";
@@ -97,13 +104,21 @@ export function EditTransformerDialog({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-0 sm:items-center">
-      <Card className="w-full max-w-lg rounded-t-lg rounded-b-none sm:rounded-lg px-4 pb-4 sm:px-0 sm:pb-0 max-h-[85vh] overflow-y-auto">
-        <CardHeader>
-          <CardTitle className="text-base font-semibold">Edit Transformer</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={submit} className="space-y-3">
+    <Dialog
+      open={open}
+      onOpenChange={(nextOpen) => {
+        if (!nextOpen) onClose();
+      }}
+    >
+      <DialogPortal>
+        <DialogOverlay />
+        <DialogContent>
+          <Card className="w-full max-w-lg rounded-lg px-4 pb-4 sm:px-0 sm:pb-0 max-h-[85vh] overflow-y-auto">
+            <CardHeader>
+              <DialogTitle>Edit Transformer</DialogTitle>
+            </CardHeader>
+            <CardContent>
+              <form onSubmit={submit} className="space-y-3">
             {isAdmin && (
               <div className="space-y-1 rounded-md border border-border/80 bg-muted/20 p-3">
                 <label className="flex items-center gap-2">
@@ -281,13 +296,19 @@ export function EditTransformerDialog({
 
             {isAdmin && transformer.device_api_key && (
               <div className="space-y-1 rounded-md border border-border/80 bg-muted/20 p-3">
-                <label className="text-sm font-medium text-foreground">Device API key (ESP32 portal)</label>
+                <label
+                  htmlFor="edit-device-api-key"
+                  className="text-sm font-medium text-foreground"
+                >
+                  Device API key (ESP32 portal)
+                </label>
                 <p className="text-xs text-muted-foreground">
                   Paste into WiFi config field &quot;Device API key&quot;. Device uses this to sync nameplate values
                   from the server.
                 </p>
                 <div className="flex gap-2">
                   <input
+                    id="edit-device-api-key"
                     readOnly
                     className="min-w-0 flex-1 rounded-md border border-border/80 bg-background px-3 py-2 font-mono text-xs outline-none"
                     value={transformer.device_api_key}
@@ -312,7 +333,11 @@ export function EditTransformerDialog({
               </div>
             )}
 
-            {error && <div className="text-sm text-red-600">{error}</div>}
+            {error && (
+              <div role="alert" aria-live="polite" className="text-sm text-destructive">
+                {error}
+              </div>
+            )}
 
             <div className="flex items-center justify-end gap-2 pt-2">
               <Button type="button" variant="outline" onClick={onClose} disabled={submitting}>
@@ -322,10 +347,12 @@ export function EditTransformerDialog({
                 {submitting ? "Saving..." : "Save"}
               </Button>
             </div>
-          </form>
-        </CardContent>
-      </Card>
-    </div>
+              </form>
+            </CardContent>
+          </Card>
+        </DialogContent>
+      </DialogPortal>
+    </Dialog>
   );
 }
 

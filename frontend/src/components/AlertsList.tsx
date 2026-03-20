@@ -30,6 +30,7 @@ export function AlertsList({
   const [density, setDensity] = useState<Density>("compact");
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
   const [ackAllLoading, setAckAllLoading] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   const handleAcknowledge = useCallback(
     async (id: number) => {
@@ -38,10 +39,12 @@ export function AlertsList({
       );
       try {
         await acknowledgeAlert(id);
+        setActionError(null);
       } catch {
         setAlerts((a) =>
           a.map((alert) => (alert.id === id ? { ...alert, acknowledged: false } : alert))
         );
+        setActionError("Failed to acknowledge alert. Please try again.");
       }
     },
     [setAlerts]
@@ -52,14 +55,17 @@ export function AlertsList({
     const toRevert = alerts.filter((a) => !a.acknowledged).map((a) => a.id);
     setAlerts((a) => a.map((alert) => ({ ...alert, acknowledged: true })));
     setAckAllLoading(true);
+    setActionError(null);
     try {
       await acknowledgeAllAlerts(transformerId);
+      setActionError(null);
     } catch {
       setAlerts((a) =>
         a.map((alert) =>
           toRevert.includes(alert.id) ? { ...alert, acknowledged: false } : alert
         )
       );
+      setActionError("Failed to acknowledge all alerts. Please try again.");
     } finally {
       setAckAllLoading(false);
     }
@@ -170,8 +176,9 @@ export function AlertsList({
             <div className="flex flex-wrap items-center gap-2">
               <div className="flex rounded-md border border-border/80 p-0.5">
                 <button
+                  type="button"
                   onClick={() => handleFilterChange("all")}
-                  className={`rounded px-2 py-1 text-xs font-medium ${
+                  className={`rounded px-2 py-1 text-xs font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
                     filter === "all"
                       ? "bg-primary text-primary-foreground"
                       : "text-muted-foreground hover:bg-muted hover:text-foreground"
@@ -180,8 +187,9 @@ export function AlertsList({
                   All
                 </button>
                 <button
+                  type="button"
                   onClick={() => handleFilterChange("unacknowledged")}
-                  className={`rounded px-2 py-1 text-xs font-medium ${
+                  className={`rounded px-2 py-1 text-xs font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
                     filter === "unacknowledged"
                       ? "bg-primary text-primary-foreground"
                       : "text-muted-foreground hover:bg-muted hover:text-foreground"
@@ -192,8 +200,9 @@ export function AlertsList({
               </div>
               <div className="flex rounded-md border border-border/80 p-0.5">
                 <button
+                  type="button"
                   onClick={() => setDensity("compact")}
-                  className={`rounded px-2 py-1 text-xs font-medium ${
+                  className={`rounded px-2 py-1 text-xs font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
                     density === "compact"
                       ? "bg-primary text-primary-foreground"
                       : "text-muted-foreground hover:bg-muted hover:text-foreground"
@@ -202,8 +211,9 @@ export function AlertsList({
                   Compact
                 </button>
                 <button
+                  type="button"
                   onClick={() => setDensity("detailed")}
-                  className={`rounded px-2 py-1 text-xs font-medium ${
+                  className={`rounded px-2 py-1 text-xs font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
                     density === "detailed"
                       ? "bg-primary text-primary-foreground"
                       : "text-muted-foreground hover:bg-muted hover:text-foreground"
@@ -229,6 +239,15 @@ export function AlertsList({
       </CardHeader>
 
       <CardContent className="flex min-h-0 flex-1 flex-col">
+        {actionError && (
+          <div
+            role="alert"
+            aria-live="polite"
+            className="mb-2 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive"
+          >
+            {actionError}
+          </div>
+        )}
         {alerts.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-12 text-center">
             <div className="mb-3 rounded-full bg-green-100 p-3 dark:bg-green-900/30">
@@ -290,8 +309,9 @@ export function AlertsList({
                       className="rounded-lg border border-border/80 bg-muted/30"
                     >
                       <button
+                        type="button"
                         onClick={() => groupAlerts.length > 5 && toggleGroup(condition)}
-                        className="flex w-full items-center justify-between px-3 py-2 text-left"
+                        className="flex w-full items-center justify-between px-3 py-2 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                       >
                         <div className="flex items-center gap-2">
                           <ConditionBadge condition={condition as Condition} />

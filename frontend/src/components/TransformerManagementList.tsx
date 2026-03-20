@@ -48,7 +48,7 @@ export function TransformerManagementList({
           >
             <button
               type="button"
-              className="text-left w-full sm:w-auto"
+              className="text-left w-full sm:w-auto focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
               onClick={() => onSelect(t.id)}
               aria-label={`Select transformer ${t.name}`}
             >
@@ -88,7 +88,7 @@ export function TransformerManagementList({
                 size="sm"
                 variant="outline"
                 onClick={() => onDelete(t)}
-                className="border-red-200 text-red-600 hover:bg-red-50 w-full sm:w-auto"
+                className="border-destructive text-destructive hover:bg-destructive/10 w-full sm:w-auto"
               >
                 Delete
               </Button>

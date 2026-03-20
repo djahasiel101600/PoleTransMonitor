@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import {
   fetchTransformers,
   fetchReadings,
@@ -13,7 +13,8 @@ import { ReadingsChart } from "./ReadingsChart";
 import { LoadByHourChart } from "./LoadByHourChart";
 import { LoadHeatmap } from "./LoadHeatmap";
 import { ConditionDonut } from "./ConditionDonut";
-import { CRITICAL_CONDITIONS, ConditionBadge } from "./ConditionBadge";
+import { ConditionBadge } from "./ConditionBadge";
+import { CRITICAL_CONDITIONS } from "./ConditionBadge.constants";
 import { useMonitorWebSocket } from "../hooks/useMonitorWebSocket";
 import { useAuth } from "../contexts/AuthContext";
 import { useTheme } from "../contexts/ThemeContext";
@@ -58,6 +59,37 @@ export function Dashboard() {
 
   type TabKey = "monitoring" | "management";
   const [activeTab, setActiveTab] = useState<TabKey>("monitoring");
+  const monitoringTabRef = useRef<HTMLButtonElement | null>(null);
+  const managementTabRef = useRef<HTMLButtonElement | null>(null);
+
+  const onTabKeyDown = (e: KeyboardEvent<HTMLButtonElement>) => {
+    if (e.key !== "ArrowLeft" && e.key !== "ArrowRight" && e.key !== "Home" && e.key !== "End") {
+      return;
+    }
+
+    e.preventDefault();
+
+    const go = (next: TabKey) => {
+      setActiveTab(next);
+      requestAnimationFrame(() => {
+        if (next === "monitoring") monitoringTabRef.current?.focus();
+        else managementTabRef.current?.focus();
+      });
+    };
+
+    if (e.key === "Home") return go("monitoring");
+    if (e.key === "End") return go(isAdmin ? "management" : "monitoring");
+
+    // Only two tabs: Left/Right swap.
+    if (activeTab === "monitoring") {
+      if (e.key === "ArrowRight" && isAdmin) return go("management");
+      return go("monitoring");
+    }
+
+    // activeTab === "management"
+    if (e.key === "ArrowLeft") return go("monitoring");
+    return go(isAdmin ? "management" : "monitoring");
+  };
 
   useEffect(() => {
     // Non-admin users cannot access management.
@@ -125,7 +157,12 @@ export function Dashboard() {
   if (isAuthenticating) {
     return (
       <div className="min-h-screen bg-background p-4">
-        <div className="mx-auto max-w-md pt-24 text-center text-sm text-muted-foreground">
+        <div
+          role="status"
+          aria-live="polite"
+          aria-busy="true"
+          className="mx-auto max-w-md pt-24 text-center text-sm text-muted-foreground"
+        >
           Authenticating...
         </div>
       </div>
@@ -224,26 +261,33 @@ export function Dashboard() {
       <main className="flex gap-6 px-4 py-6 sm:px-6 lg:px-8">
         <div className="min-w-0 flex-1 space-y-8">
           <div className="sticky top-[4.5rem] z-10 -mx-4 border-b border-border/50 bg-background/95 px-4 py-2 backdrop-blur">
-            <div className="flex gap-2">
+            <div className="flex gap-2" role="tablist" aria-label="Dashboard sections">
               <button
                 type="button"
                 role="tab"
+                id="tab-monitoring"
+                aria-controls="tabpanel-monitoring"
+                ref={monitoringTabRef}
                 aria-selected={activeTab === "monitoring"}
-                className={`rounded-md border px-3 py-1.5 text-sm transition-colors ${
+                className={`rounded-md border px-3 py-1.5 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
                   activeTab === "monitoring"
                     ? "border-primary/40 bg-primary/10 text-primary"
                     : "border-border/80 bg-background text-muted-foreground hover:bg-muted/50"
                 }`}
                 onClick={() => setActiveTab("monitoring")}
+                onKeyDown={onTabKeyDown}
               >
                 Monitoring
               </button>
               <button
                 type="button"
                 role="tab"
+                id="tab-management"
+                aria-controls="tabpanel-management"
+                ref={managementTabRef}
                 aria-selected={activeTab === "management"}
                 disabled={!isAdmin}
-                className={`rounded-md border px-3 py-1.5 text-sm transition-colors ${
+                className={`rounded-md border px-3 py-1.5 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
                   !isAdmin
                     ? "cursor-not-allowed border-border/80 bg-muted/30 text-muted-foreground opacity-60"
                     : activeTab === "management"
@@ -254,6 +298,7 @@ export function Dashboard() {
                   if (!isAdmin) return;
                   setActiveTab("management");
                 }}
+                onKeyDown={onTabKeyDown}
               >
                 Transformer Management
               </button>
@@ -261,7 +306,7 @@ export function Dashboard() {
           </div>
 
           {activeTab === "monitoring" ? (
-            <>
+            <div role="tabpanel" id="tabpanel-monitoring" aria-labelledby="tab-monitoring">
               <TransformerInsights
                 reading={displayReading}
                 transformer={selectedTransformer ?? null}
@@ -272,13 +317,13 @@ export function Dashboard() {
               {isAtRisk && (
                 <div
                   role="alert"
-                  className="flex items-center gap-3 rounded-lg border border-red-200 bg-red-50/80 px-4 py-3 dark:border-red-900/40 dark:bg-red-950/30"
+                  className="flex items-center gap-3 rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3"
                 >
                   <svg
                     xmlns="http://www.w3.org/2000/svg"
                     viewBox="0 0 24 24"
                     fill="currentColor"
-                    className="h-4 w-4 shrink-0 text-red-600 dark:text-red-400"
+                    className="h-4 w-4 shrink-0 text-destructive"
                   >
                     <path
                       fillRule="evenodd"
@@ -286,7 +331,7 @@ export function Dashboard() {
                       clipRule="evenodd"
                     />
                   </svg>
-                  <div className="flex flex-wrap items-center gap-2 text-sm text-red-800 dark:text-red-200">
+                  <div className="flex flex-wrap items-center gap-2 text-sm text-destructive">
                     At risk —
                     {displayReading?.condition && (
                       <ConditionBadge condition={displayReading.condition} />
@@ -310,9 +355,9 @@ export function Dashboard() {
               </div>
 
               <LoadHeatmap transformerId={selectedId} />
-            </>
+            </div>
           ) : (
-            <>
+            <div role="tabpanel" id="tabpanel-management" aria-labelledby="tab-management">
               {isAdmin && showTransformerManagement && (
                 <Card className="border-border/80 shadow-none">
                   <CardHeader className="flex flex-row items-center justify-between gap-4">
@@ -407,7 +452,7 @@ export function Dashboard() {
                   Transformer Management is locked. Ask an admin to enable access.
                 </div>
               )}
-            </>
+            </div>
           )}
         </div>
 

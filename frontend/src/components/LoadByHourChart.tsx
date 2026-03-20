@@ -39,19 +39,17 @@ export function LoadByHourChart({
   const [readings, setReadings] = useState<Reading[]>([]);
   const [loading, setLoading] = useState(false);
   const [period, setPeriod] = useState<Period>("24h");
-  const since = useMemo(() => {
-    const ms = period === "7d" ? 7 * 24 * 60 * 60 * 1000 : 24 * 60 * 60 * 1000;
-    return new Date(Date.now() - ms).toISOString();
-  }, [period]);
 
   useEffect(() => {
     if (transformerId == null) return;
-    setLoading(true);
+    queueMicrotask(() => setLoading(true));
+    const ms = period === "7d" ? 7 * 24 * 60 * 60 * 1000 : 24 * 60 * 60 * 1000;
+    const since = new Date(Date.now() - ms).toISOString();
     fetchReadings(transformerId, since)
       .then((r) => setReadings(r))
       .catch((e) => console.error("LoadByHourChart:", e))
       .finally(() => setLoading(false));
-  }, [transformerId, since]);
+  }, [transformerId, period]);
 
   const data = useMemo<
     Array<{ hour?: string; day?: string; loadKva: number; count: number }>
@@ -90,7 +88,7 @@ export function LoadByHourChart({
           <Skeleton className="h-5 w-48" />
         </CardHeader>
         <CardContent>
-          <Skeleton className="h-56 w-full rounded-lg" />
+          <Skeleton className="h-[clamp(12rem,28vh,16rem)] w-full rounded-lg" />
         </CardContent>
       </Card>
     );
@@ -121,11 +119,11 @@ export function LoadByHourChart({
       </CardHeader>
       <CardContent>
         {!hasData ? (
-          <div className="flex h-56 items-center justify-center text-sm text-muted-foreground">
+          <div className="flex h-[clamp(12rem,28vh,16rem)] items-center justify-center text-sm text-muted-foreground">
             No load data for this period
           </div>
         ) : (
-          <div className="h-56">
+          <div className="h-[clamp(12rem,28vh,16rem)]">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={data} margin={CHART_MARGIN}>
                 <CartesianGrid strokeDasharray="3 3" className="stroke-border" />

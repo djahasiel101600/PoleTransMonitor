@@ -71,7 +71,7 @@ export function ReadingsChart({ transformerId }: { transformerId: number | null 
 
   useEffect(() => {
     if (transformerId == null) return;
-    setLoading(true);
+    queueMicrotask(() => setLoading(true));
     const since = new Date(Date.now() - rangeMs).toISOString();
     fetchReadings(transformerId, since)
       .then((r) => setReadings([...r].reverse()))
@@ -81,14 +81,16 @@ export function ReadingsChart({ transformerId }: { transformerId: number | null 
 
   useEffect(() => {
     if (wsReading == null) return;
-    setReadings((prev) => {
-      const seen = new Set(prev.map((r) => r.id));
-      if (seen.has(wsReading.id)) return prev;
-      const merged = [...prev, wsReading].sort(
-        (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
-      );
-      return trimToRange(merged);
-    });
+    queueMicrotask(() =>
+      setReadings((prev) => {
+        const seen = new Set(prev.map((r) => r.id));
+        if (seen.has(wsReading.id)) return prev;
+        const merged = [...prev, wsReading].sort(
+          (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+        );
+        return trimToRange(merged);
+      })
+    );
   }, [wsReading, trimToRange]);
 
   const chartData = useMemo(
@@ -115,12 +117,18 @@ export function ReadingsChart({ transformerId }: { transformerId: number | null 
 
   if (loading) {
     return (
-      <Card className="border-border/80 shadow-none">
+      <Card
+        role="status"
+        aria-live="polite"
+        aria-busy="true"
+        aria-label="Loading readings chart"
+        className="border-border/80 shadow-none"
+      >
         <CardHeader>
           <Skeleton className="h-5 w-24" />
         </CardHeader>
         <CardContent>
-          <Skeleton className="h-56 w-full rounded-lg" />
+          <Skeleton className="h-[clamp(12rem,28vh,16rem)] w-full rounded-lg" />
         </CardContent>
       </Card>
     );
@@ -160,8 +168,9 @@ export function ReadingsChart({ transformerId }: { transformerId: number | null 
           {TIME_RANGES.map((r) => (
             <button
               key={r.value}
+              type="button"
               onClick={() => setTimeRange(r.value)}
-              className={`rounded px-2.5 py-1 text-xs font-medium transition-colors ${
+              className={`rounded px-2.5 py-1 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
                 timeRange === r.value
                   ? "bg-primary text-primary-foreground"
                   : "text-muted-foreground hover:bg-muted hover:text-foreground"
@@ -174,13 +183,13 @@ export function ReadingsChart({ transformerId }: { transformerId: number | null 
       </CardHeader>
       <CardContent>
         {!hasData ? (
-          <div className="flex h-64 flex-col items-center justify-center text-center text-sm text-muted-foreground">
+          <div className="flex h-[clamp(12rem,28vh,16rem)] flex-col items-center justify-center text-center text-sm text-muted-foreground">
             <p>No historical data for this period</p>
             <p className="mt-1 text-xs">Readings will appear as the ESP32 sends data</p>
           </div>
         ) : (
           <div className="space-y-6">
-            <div className="h-56">
+            <div className="h-[clamp(12rem,28vh,16rem)]">
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={chartData} margin={CHART_MARGIN}>
                   <CartesianGrid strokeDasharray="3 3" className="stroke-border" />

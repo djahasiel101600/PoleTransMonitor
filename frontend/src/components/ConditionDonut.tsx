@@ -58,19 +58,15 @@ export function ConditionDonut({
   const [readings, setReadings] = useState<Reading[]>([]);
   const [loading, setLoading] = useState(false);
 
-  const since = useMemo(
-    () => new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
-    []
-  );
-
   useEffect(() => {
     if (transformerId == null) return;
-    setLoading(true);
+    queueMicrotask(() => setLoading(true));
+    const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
     fetchReadings(transformerId, since)
       .then(setReadings)
       .catch((e) => console.error("ConditionDonut:", e))
       .finally(() => setLoading(false));
-  }, [transformerId, since]);
+  }, [transformerId]);
 
   const data = useMemo(() => {
     const counts: Record<ConditionLevel, number> = { normal: 0, warning: 0, critical: 0 };
@@ -93,7 +89,7 @@ export function ConditionDonut({
           <Skeleton className="h-5 w-44" />
         </CardHeader>
         <CardContent>
-          <Skeleton className="h-56 w-full rounded-lg" />
+          <Skeleton className="h-[clamp(12rem,28vh,16rem)] w-full rounded-lg" />
         </CardContent>
       </Card>
     );
@@ -111,11 +107,11 @@ export function ConditionDonut({
       </CardHeader>
       <CardContent>
         {total === 0 ? (
-          <div className="flex h-56 items-center justify-center text-sm text-muted-foreground">
+          <div className="flex h-[clamp(12rem,28vh,16rem)] items-center justify-center text-sm text-muted-foreground">
             No readings in the last 24h
           </div>
         ) : (
-          <div className="h-56">
+          <div className="h-[clamp(12rem,28vh,16rem)]">
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
                 <Pie

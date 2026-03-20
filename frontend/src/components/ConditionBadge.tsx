@@ -1,6 +1,7 @@
 import { memo } from "react";
 import { Badge } from "./ui/Badge";
 import type { Condition } from "../types";
+import { CRITICAL_CONDITIONS } from "./ConditionBadge.constants";
 
 const CONDITION_LABELS: Record<Condition, string> = {
   normal: "Normal",
@@ -13,13 +14,6 @@ const CONDITION_LABELS: Record<Condition, string> = {
   poor_power_quality: "Poor Power Quality",
   critical: "Critical",
 };
-
-export const CRITICAL_CONDITIONS: Condition[] = [
-  "danger_zone",
-  "severe_overload",
-  "abnormal",
-  "critical",
-];
 
 const WARNING_CONDITIONS: Condition[] = [
   "heavy_peak_load",
