@@ -3,6 +3,10 @@ from .models import Transformer, Reading, Alert
 
 
 class TransformerSerializer(serializers.ModelSerializer):
+    """Staff users see `device_api_key` (for ESP32 portal setup); others get null."""
+
+    device_api_key = serializers.SerializerMethodField()
+
     class Meta:
         model = Transformer
         fields = [
@@ -14,8 +18,17 @@ class TransformerSerializer(serializers.ModelSerializer):
             "rated_kva",
             "rated_current",
             "site",
+            "phone_number",
+            "device_api_key",
             "created_at",
         ]
+        read_only_fields = ["created_at"]
+
+    def get_device_api_key(self, obj):
+        request = self.context.get("request")
+        if request and request.user.is_authenticated and request.user.is_staff:
+            return obj.device_api_key
+        return None
 
 
 class ReadingSerializer(serializers.ModelSerializer):

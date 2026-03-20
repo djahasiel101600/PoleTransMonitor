@@ -15,6 +15,9 @@ export function AddTransformerDialog({
 }) {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  /** After create, staff may need to copy device API key into the ESP32 portal */
+  const [createdWithKey, setCreatedWithKey] = useState<Transformer | null>(null);
+  const [copyHint, setCopyHint] = useState<string | null>(null);
 
   const [name, setName] = useState("");
   const [serial, setSerial] = useState("");
@@ -23,11 +26,14 @@ export function AddTransformerDialog({
   const [ratedKva, setRatedKva] = useState<number>(15);
   const [ratedCurrent, setRatedCurrent] = useState<number>(68);
   const [site, setSite] = useState("");
+  const [phoneNumber, setPhoneNumber] = useState("");
 
   useEffect(() => {
     if (!open) return;
     setSubmitting(false);
     setError(null);
+    setCreatedWithKey(null);
+    setCopyHint(null);
     setName("");
     setSerial("");
     setNominalVoltage(230);
@@ -35,9 +41,30 @@ export function AddTransformerDialog({
     setRatedKva(15);
     setRatedCurrent(68);
     setSite("");
+    setPhoneNumber("");
   }, [open]);
 
   if (!open) return null;
+
+  const finishAfterKey = () => {
+    if (createdWithKey) {
+      onCreated(createdWithKey);
+      setCreatedWithKey(null);
+    }
+    onClose();
+  };
+
+  const copyDeviceKey = async () => {
+    const k = createdWithKey?.device_api_key;
+    if (!k) return;
+    try {
+      await navigator.clipboard.writeText(k);
+      setCopyHint("Copied to clipboard");
+      setTimeout(() => setCopyHint(null), 2000);
+    } catch {
+      setCopyHint("Copy failed — select the field manually");
+    }
+  };
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
@@ -53,12 +80,18 @@ export function AddTransformerDialog({
         rated_kva: Number(ratedKva),
         rated_current: Number(ratedCurrent),
         site: site.trim().length ? site.trim() : null,
+        phone_number: phoneNumber.trim().length ? phoneNumber.trim() : null,
       };
 
       if (!payload.name) throw new Error("Transformer name is required");
 
       const created = await createTransformer(payload);
-      onCreated(created as Transformer);
+      const t = created as Transformer;
+      if (t.device_api_key) {
+        setCreatedWithKey(t);
+        return;
+      }
+      onCreated(t);
       onClose();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to create transformer");
@@ -66,6 +99,43 @@ export function AddTransformerDialog({
       setSubmitting(false);
     }
   };
+
+  if (createdWithKey?.device_api_key) {
+    return (
+      <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-0 sm:items-center">
+        <Card className="w-full max-w-lg rounded-t-lg rounded-b-none sm:rounded-lg px-4 pb-4 sm:px-0 sm:pb-0 max-h-[85vh] overflow-y-auto">
+          <CardHeader>
+            <CardTitle className="text-base font-semibold">Device API key</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              Paste this key into the ESP32 WiFi portal field <strong>Device API key (Dashboard → staff)</strong> so
+              the device loads the same nominal voltage, frequency, and ratings as the dashboard.
+            </p>
+            <div className="flex gap-2">
+              <input
+                readOnly
+                className="min-w-0 flex-1 rounded-md border border-border/80 bg-muted/30 px-3 py-2 font-mono text-xs outline-none"
+                value={createdWithKey.device_api_key}
+              />
+              <Button type="button" variant="outline" onClick={() => void copyDeviceKey()}>
+                Copy
+              </Button>
+            </div>
+            {copyHint && <p className="text-xs text-muted-foreground">{copyHint}</p>}
+            <p className="text-xs text-amber-700 dark:text-amber-400">
+              Store this key securely. You can copy it again anytime from Edit transformer (staff).
+            </p>
+            <div className="flex justify-end pt-2">
+              <Button type="button" onClick={finishAfterKey}>
+                Done
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-0 sm:items-center">
@@ -91,6 +161,19 @@ export function AddTransformerDialog({
                 value={serial}
                 onChange={(e) => setSerial(e.target.value)}
               />
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-sm font-medium text-foreground">Phone number (optional)</label>
+              <input
+                type="tel"
+                autoComplete="tel"
+                placeholder="e.g. +639171234567"
+                className="w-full rounded-md border border-border/80 bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary/20"
+                value={phoneNumber}
+                onChange={(e) => setPhoneNumber(e.target.value)}
+              />
+              <p className="text-xs text-muted-foreground">SIM / modem MSISDN for SMS or device identification</p>
             </div>
 
             <div className="grid grid-cols-2 gap-3">
@@ -161,4 +244,3 @@ export function AddTransformerDialog({
     </div>
   );
 }
-

@@ -4,7 +4,15 @@ from .models import Transformer, Reading, Alert
 
 @admin.register(Transformer)
 class TransformerAdmin(admin.ModelAdmin):
-    list_display = ["name", "serial", "rated_kva", "site", "created_at"]
+    list_display = [
+        "name",
+        "serial",
+        "phone_number",
+        "rated_kva",
+        "site",
+        "created_at",
+    ]
+    readonly_fields = ["device_api_key", "created_at"]
 
 
 @admin.register(Reading)

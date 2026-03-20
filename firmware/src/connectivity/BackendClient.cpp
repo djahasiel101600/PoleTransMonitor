@@ -1,4 +1,6 @@
 #include "BackendClient.h"
+#include "../config/ConfigManager.h"
+#include "config.h"
 #include <ArduinoJson.h>
 #include <HTTPClient.h>
 #include <WiFi.h>
@@ -49,4 +51,61 @@ int BackendClient::postReadingWithStatus(const ReadingPayload& payload) {
   int code = http.POST((uint8_t*)body, len);
   http.end();
   return code;
+}
+
+bool BackendClient::fetchDeviceConfig(const char* deviceKey, ConfigManager& cm) {
+  if (WiFi.status() != WL_CONNECTED) return false;
+  if (!deviceKey || !deviceKey[0]) return false;
+
+  HTTPClient http;
+  char url[192];
+  snprintf(url, sizeof(url), "%s/api/transformers/%d/device_config/", baseUrl_, transformerId_);
+  http.begin(url);
+  http.addHeader("X-Device-Key", deviceKey);
+
+  int code = http.GET();
+  if (code != 200) {
+#if DEBUG_SERIAL
+    Serial.printf("[DEBUG] GET device_config HTTP %d\n", code);
+#endif
+    http.end();
+    return false;
+  }
+
+  String payload = http.getString();
+  http.end();
+
+  StaticJsonDocument<384> doc;
+  DeserializationError err = deserializeJson(doc, payload);
+  if (err) {
+#if DEBUG_SERIAL
+    Serial.println("[DEBUG] device_config JSON parse error");
+#endif
+    return false;
+  }
+
+  float nv = doc["nominal_voltage"] | 0.0f;
+  float nf = doc["nominal_freq"] | 0.0f;
+  float rkva = doc["rated_kva"] | 0.0f;
+  float ri = doc["rated_current"] | 0.0f;
+  float rva = doc["rated_apparent_power_va"] | 0.0f;
+
+  if (nv <= 0.0f || rkva <= 0.0f) {
+#if DEBUG_SERIAL
+    Serial.println("[DEBUG] device_config missing nominal_voltage or rated_kva");
+#endif
+    return false;
+  }
+  if (rva <= 0.0f) {
+    rva = rkva * 1000.0f;
+  }
+  if (nf <= 0.0f) {
+    nf = NOMINAL_FREQUENCY;
+  }
+  if (ri <= 0.0f) {
+    ri = RATED_CURRENT;
+  }
+
+  cm.setCachedProfile(nv, nf, ri, rva);
+  return true;
 }

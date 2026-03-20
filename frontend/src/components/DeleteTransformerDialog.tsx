@@ -51,6 +51,9 @@ export function DeleteTransformerDialog({
             <div className="text-sm text-foreground">
               Are you sure you want to delete <span className="font-medium">{transformer.name}</span>?
             </div>
+            {transformer.phone_number && (
+              <div className="text-xs text-muted-foreground">Phone: {transformer.phone_number}</div>
+            )}
             <div className="text-xs text-muted-foreground">
               This will also delete related readings and alerts (cascade delete).
             </div>

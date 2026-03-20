@@ -24,7 +24,10 @@ export function TransformerManagementList({
       const name = (t.name ?? "").toLowerCase();
       const serial = (t.serial ?? "").toLowerCase();
       const site = (t.site ?? "").toLowerCase();
-      return name.includes(q) || serial.includes(q) || site.includes(q);
+      const phone = (t.phone_number ?? "").toLowerCase();
+      return (
+        name.includes(q) || serial.includes(q) || site.includes(q) || phone.includes(q)
+      );
     });
   }, [transformers, query]);
 
@@ -52,6 +55,7 @@ export function TransformerManagementList({
               <div className="font-medium text-foreground">{t.name}</div>
               <div className="text-xs text-muted-foreground">
                 {t.serial ? `Serial: ${t.serial} · ` : ""}
+                {t.phone_number ? `Phone: ${t.phone_number} · ` : ""}
                 {t.site ? `Site: ${t.site} · ` : ""}
                 {t.rated_kva} kVA
               </div>

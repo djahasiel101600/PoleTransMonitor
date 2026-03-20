@@ -7,6 +7,10 @@ export interface Transformer {
   rated_kva: number;
   rated_current: number;
   site: string | null;
+  /** SIM / modem phone number (optional), e.g. +639171234567 */
+  phone_number?: string | null;
+  /** Present for staff only; used as X-Device-Key on the ESP32 */
+  device_api_key?: string | null;
   created_at: string;
 }
 

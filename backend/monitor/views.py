@@ -1,4 +1,5 @@
 import logging
+import secrets
 
 from rest_framework import viewsets, filters, status
 from rest_framework.decorators import action
@@ -6,6 +7,7 @@ from rest_framework.permissions import AllowAny, IsAdminUser, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from django_filters.rest_framework import DjangoFilterBackend
+from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from django.db.models import Max, Min
 from datetime import timedelta
@@ -75,9 +77,64 @@ class TransformerViewSet(viewsets.ModelViewSet):
 
     def get_permissions(self):
         # The ESP32 device posts readings; we only want admins/staff to manage transformers.
+        if self.action == "device_config":
+            return [AllowAny()]
         if self.action in ["create", "update", "partial_update", "destroy"]:
             return [IsAuthenticated(), IsAdminUser()]
         return [IsAuthenticated()]
+
+    @action(detail=True, methods=["get"], url_path="device_config")
+    def device_config(self, request, pk=None):
+        """
+        Authenticated by header X-Device-Key (per-transformer secret).
+        Returns nameplate fields for firmware threshold evaluation (must match dashboard).
+        """
+        client_key = (
+            request.headers.get("X-Device-Key")
+            or request.headers.get("X-Device-Token")
+            or ""
+        ).strip()
+        if not client_key:
+            return Response(
+                {"detail": "Missing X-Device-Key header."},
+                status=status.HTTP_401_UNAUTHORIZED,
+            )
+        transformer = get_object_or_404(Transformer.objects.all(), pk=pk)
+        server_key = (transformer.device_api_key or "").strip()
+        if not server_key:
+            return Response(
+                {"detail": "Device key not configured for this transformer."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        try:
+            if len(client_key) != len(server_key) or not secrets.compare_digest(
+                client_key, server_key
+            ):
+                return Response(
+                    {"detail": "Invalid device key."},
+                    status=status.HTTP_403_FORBIDDEN,
+                )
+        except (TypeError, ValueError):
+            return Response(
+                {"detail": "Invalid device key."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        rkva = float(transformer.rated_kva or 15)
+        nv = float(transformer.nominal_voltage or 220)
+        nf = float(transformer.nominal_freq or 60)
+        ri = float(transformer.rated_current or 68)
+        return Response(
+            {
+                "transformer_id": transformer.id,
+                "name": transformer.name,
+                "nominal_voltage": nv,
+                "nominal_freq": nf,
+                "rated_kva": rkva,
+                "rated_current": ri,
+                "rated_apparent_power_va": round(rkva * 1000.0, 2),
+            }
+        )
 
     @action(detail=True, methods=["get"], url_path="insights")
     def insights(self, request, pk=None):

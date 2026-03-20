@@ -150,6 +150,7 @@ export function Dashboard() {
                   <option key={t.id} value={t.id}>
                     {t.name}
                     {t.serial ? ` · ${t.serial}` : ""}
+                    {t.phone_number ? ` · ${t.phone_number}` : ""}
                   </option>
                 ))}
               </select>
@@ -328,7 +329,7 @@ export function Dashboard() {
                           className="w-full rounded-md border border-border/80 bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary/20"
                           value={transformerQuery}
                           onChange={(e) => setTransformerQuery(e.target.value)}
-                          placeholder="Search by name or serial..."
+                          placeholder="Search by name, serial, phone, or site..."
                           aria-label="Search transformers"
                         />
                         <Button type="button" size="sm" onClick={() => setShowAddTransformer(true)}>

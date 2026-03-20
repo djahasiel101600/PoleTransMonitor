@@ -29,11 +29,15 @@ Sim7600Manager sim7600;
 // These must outlive `setup()` because we may open the portal later via button long-press.
 static WiFiManagerParameter* pBackendUrlParam = nullptr;
 static WiFiManagerParameter* pTransformerIdParam = nullptr;
+static WiFiManagerParameter* pDeviceKeyParam = nullptr;
 static char transformerIdBuf[8];
+static char deviceKeyBuf[ConfigManager::DEVICE_KEY_MAX];
 
 // Portal trigger via long-press button (active-low with INPUT_PULLUP).
 static unsigned long portalButtonPressedAtMs = 0;
 static bool waitingForPortalButtonRelease = false;
+
+static void syncDeviceProfileFromServer();
 
 static bool checkAndOpenPortalByLongPress() {
   // Optional "cooldown": require button release before re-arming.
@@ -63,6 +67,7 @@ static bool checkAndOpenPortalByLongPress() {
     // Reload settings in case user changed backend URL / transformer ID.
     configMgr.load();
     backendClient.begin(configMgr.getBackendUrl(), configMgr.getTransformerId());
+    syncDeviceProfileFromServer();
     Serial.println("Config portal closed.");
 
     waitingForPortalButtonRelease = true;
@@ -81,6 +86,29 @@ EvalParams evalParams;
 static bool lastWiFiConnected = false;
 #endif
 
+static void syncDeviceProfileFromServer() {
+  if (WiFi.status() != WL_CONNECTED) return;
+  if (!configMgr.getDeviceApiKey()[0]) return;
+  if (backendClient.fetchDeviceConfig(configMgr.getDeviceApiKey(), configMgr)) {
+    EvalParams ep;
+    configMgr.fillEvalParams(ep);
+    evaluator.setParams(ep);
+#if DEBUG_SERIAL
+    Serial.printf("[DEBUG] Device profile synced: Vn=%.1f V Fn=%.1f Hz In=%.1f A Sn=%.0f VA\n",
+                  ep.nominalVoltage, ep.nominalFreq, ep.ratedCurrent, ep.ratedApparentPower);
+#endif
+  } else {
+#if DEBUG_SERIAL
+    static unsigned long lastFailLogMs = 0;
+    const unsigned long m = millis();
+    if (m - lastFailLogMs > 120000) {
+      lastFailLogMs = m;
+      Serial.println("[DEBUG] device_config fetch failed (URL, Transformer ID, Device API key)");
+    }
+#endif
+  }
+}
+
 void setup() {
   Serial.begin(115200);
   delay(1000);
@@ -94,15 +122,14 @@ void setup() {
   Serial.println("[DEBUG] Sensors initialized (PZEM, MAX31865)");
 #endif
 
-  evalParams.nominalVoltage = NOMINAL_VOLTAGE;
-  evalParams.nominalFreq = NOMINAL_FREQUENCY;
-  evalParams.ratedCurrent = RATED_CURRENT;
-  evalParams.ratedApparentPower = RATED_APPARENT_POWER;
+  configMgr.load();
+  configMgr.fillEvalParams(evalParams);
   evaluator.setParams(evalParams);
 
-  configMgr.load();
-
   snprintf(transformerIdBuf, sizeof(transformerIdBuf), "%d", configMgr.getTransformerId());
+  strncpy(deviceKeyBuf, configMgr.getDeviceApiKey(), sizeof(deviceKeyBuf) - 1);
+  deviceKeyBuf[sizeof(deviceKeyBuf) - 1] = '\0';
+
   pBackendUrlParam = new WiFiManagerParameter(
       "server",
       "Server URL (e.g. http://192.168.1.6:8000)",
@@ -113,17 +140,24 @@ void setup() {
       "Transformer ID",
       transformerIdBuf,
       8);
+  pDeviceKeyParam = new WiFiManagerParameter(
+      "dkey",
+      "Device API key (Dashboard → staff)",
+      deviceKeyBuf,
+      static_cast<int>(sizeof(deviceKeyBuf) - 1));
 
   wm.addParameter(pBackendUrlParam);
   wm.addParameter(pTransformerIdParam);
+  wm.addParameter(pDeviceKeyParam);
 
   wm.setSaveConfigCallback([]() {
     configMgr.setBackendUrl(pBackendUrlParam->getValue());
     int tid = atoi(pTransformerIdParam->getValue());
     if (tid > 0) configMgr.setTransformerId(tid);
+    configMgr.setDeviceApiKey(pDeviceKeyParam->getValue());
     configMgr.save();
 #if DEBUG_SERIAL
-    Serial.println("[DEBUG] Config saved: backend URL and transformer ID");
+    Serial.println("[DEBUG] Config saved: backend URL, transformer ID, device API key");
 #endif
   });
 
@@ -143,6 +177,7 @@ void setup() {
   Serial.printf("[DEBUG] Backend: %s, Transformer ID: %d\n", configMgr.getBackendUrl(), configMgr.getTransformerId());
 #endif
   backendClient.begin(configMgr.getBackendUrl(), configMgr.getTransformerId());
+  syncDeviceProfileFromServer();
 #if ENABLE_SIM
   sim7600.begin(SIM_RX_PIN, SIM_TX_PIN, SIM_BAUD, SIM_PWR_PIN);
 #if defined(SEND_TEST_SMS_ON_BOOT) && SEND_TEST_SMS_ON_BOOT
@@ -186,6 +221,15 @@ void loop() {
   // Sample/publish cycle gate. Keeping this non-blocking helps detect long-press reliably.
   static unsigned long lastSampleMs = 0;
   const unsigned long nowMs = millis();
+
+  static unsigned long lastProfileSyncMs = 0;
+  if (WiFi.status() == WL_CONNECTED && configMgr.getDeviceApiKey()[0]) {
+    if (nowMs - lastProfileSyncMs >= (unsigned long)DEVICE_CONFIG_REFRESH_MS) {
+      lastProfileSyncMs = nowMs;
+      syncDeviceProfileFromServer();
+    }
+  }
+
   if (nowMs - lastSampleMs < (unsigned long)SAMPLE_INTERVAL_MS) {
     delay(20);
     return;

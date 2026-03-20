@@ -1,3 +1,5 @@
+import secrets
+
 from django.db import models
 
 
@@ -9,10 +11,23 @@ class Transformer(models.Model):
     rated_kva = models.FloatField(default=15)
     rated_current = models.FloatField(default=68)
     site = models.CharField(max_length=200, null=True, blank=True)
+    phone_number = models.CharField(
+        max_length=32,
+        null=True,
+        blank=True,
+        help_text="SIM / modem phone number for SMS or identification (e.g. +639171234567)",
+    )
+    # Per-transformer secret for ESP32 to fetch device_config (header X-Device-Key). Auto-generated if empty.
+    device_api_key = models.CharField(max_length=64, blank=True, default="")
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         ordering = ["-created_at"]
+
+    def save(self, *args, **kwargs):
+        if not self.device_api_key:
+            self.device_api_key = secrets.token_urlsafe(24)
+        super().save(*args, **kwargs)
 
     def __str__(self):
         return self.name

@@ -158,6 +158,7 @@ export type CreateTransformerPayload = {
   rated_kva?: number;
   rated_current?: number;
   site?: string | null;
+  phone_number?: string | null;
 };
 
 export async function createTransformer(payload: CreateTransformerPayload) {
