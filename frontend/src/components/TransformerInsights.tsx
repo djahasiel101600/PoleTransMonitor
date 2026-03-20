@@ -102,15 +102,6 @@ export function TransformerInsights({
     );
   }
 
-  const loadingStatus =
-    loadingPercent == null
-      ? "normal"
-      : loadingPercent <= 100
-        ? "normal"
-        : loadingPercent <= 125
-          ? "warning"
-          : "critical";
-
   return (
     <Card className="border-border/80 shadow-none">
       <CardHeader className="pb-2">

@@ -29,13 +29,23 @@ def broadcast_reading(reading):
 
 class MonitorConsumer(AsyncJsonWebsocketConsumer):
     async def connect(self):
+        # Ensure attributes exist even if we close early.
+        self.group_name = None
+
+        # Require JWT-authenticated users for dashboard websocket subscriptions.
+        user = self.scope.get("user")
+        if not user or not getattr(user, "is_authenticated", False):
+            await self.close()
+            return
+
         self.transformer_id = self.scope["url_route"]["kwargs"]["transformer_id"]
         self.group_name = f"monitor_{self.transformer_id}"
         await self.channel_layer.group_add(self.group_name, self.channel_name)
         await self.accept()
 
     async def disconnect(self, close_code):
-        await self.channel_layer.group_discard(self.group_name, self.channel_name)
+        if self.group_name:
+            await self.channel_layer.group_discard(self.group_name, self.channel_name)
 
     async def reading_update(self, event):
         await self.send_json(event)

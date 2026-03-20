@@ -130,7 +130,7 @@ export function ConditionDonut({
                   isAnimationActive={false}
                   label={({ name, value }) => `${name} ${((value / total) * 100).toFixed(0)}%`}
                 >
-                  {data.map((entry, i) => (
+                  {data.map((entry) => (
                     <Cell key={entry.level} fill={COLORS[entry.level]} />
                   ))}
                 </Pie>
@@ -140,10 +140,10 @@ export function ConditionDonut({
                     border: "1px solid var(--color-border)",
                     borderRadius: "8px",
                   }}
-                  formatter={(value: number) => [
-                    `${value} (${((value / total) * 100).toFixed(1)}%)`,
-                    "Readings",
-                  ]}
+                  formatter={(value) => {
+                    const v = typeof value === "number" ? value : 0;
+                    return [`${v} (${((v / total) * 100).toFixed(1)}%)`, "Readings"];
+                  }}
                 />
                 <Legend />
               </PieChart>

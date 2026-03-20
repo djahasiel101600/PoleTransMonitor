@@ -39,8 +39,6 @@ export function LoadByHourChart({
   const [readings, setReadings] = useState<Reading[]>([]);
   const [loading, setLoading] = useState(false);
   const [period, setPeriod] = useState<Period>("24h");
-
-  const hours = period === "7d" ? 168 : 24;
   const since = useMemo(() => {
     const ms = period === "7d" ? 7 * 24 * 60 * 60 * 1000 : 24 * 60 * 60 * 1000;
     return new Date(Date.now() - ms).toISOString();
@@ -55,10 +53,12 @@ export function LoadByHourChart({
       .finally(() => setLoading(false));
   }, [transformerId, since]);
 
-  const data = useMemo(() => {
+  const data = useMemo<
+    Array<{ hour?: string; day?: string; loadKva: number; count: number }>
+  >(() => {
     if (period === "24h") {
       const b = bucketByHour(readings, 24);
-      return b.map((d, i) => ({ ...d, hour: `${i}:00` }));
+      return b.map((d, i) => ({ ...d, hour: `${i}:00`, day: undefined }));
     }
     const b = bucketByHour(readings, 168);
     const byDay: { day: string; loadKva: number; count: number }[] = [];
@@ -78,7 +78,7 @@ export function LoadByHourChart({
         count: n,
       });
     }
-    return byDay;
+    return byDay.map((d) => ({ ...d, hour: undefined }));
   }, [readings, period]);
 
   if (transformerId == null) return null;
@@ -147,7 +147,10 @@ export function LoadByHourChart({
                     border: "1px solid var(--color-border)",
                     borderRadius: "8px",
                   }}
-                  formatter={(value: number) => [`${value.toFixed(2)} kVA`, "Avg load"]}
+                  formatter={(value) => {
+                    const v = typeof value === "number" ? value : 0;
+                    return [`${v.toFixed(2)} kVA`, "Avg load"];
+                  }}
                   labelFormatter={(label) => (period === "24h" ? `Hour ${label}` : label)}
                 />
                 <Bar

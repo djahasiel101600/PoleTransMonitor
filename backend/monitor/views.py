@@ -2,7 +2,9 @@ import logging
 
 from rest_framework import viewsets, filters, status
 from rest_framework.decorators import action
+from rest_framework.permissions import AllowAny, IsAdminUser, IsAuthenticated
 from rest_framework.response import Response
+from rest_framework.views import APIView
 from django_filters.rest_framework import DjangoFilterBackend
 from django.utils import timezone
 from django.db.models import Max, Min
@@ -71,6 +73,12 @@ class TransformerViewSet(viewsets.ModelViewSet):
     queryset = Transformer.objects.all()
     serializer_class = TransformerSerializer
 
+    def get_permissions(self):
+        # The ESP32 device posts readings; we only want admins/staff to manage transformers.
+        if self.action in ["create", "update", "partial_update", "destroy"]:
+            return [IsAuthenticated(), IsAdminUser()]
+        return [IsAuthenticated()]
+
     @action(detail=True, methods=["get"], url_path="insights")
     def insights(self, request, pk=None):
         """Return staff-facing insights for this transformer (current + 24h aggregates)."""
@@ -120,6 +128,13 @@ class ReadingViewSet(viewsets.ModelViewSet):
             return ReadingCreateSerializer
         return ReadingSerializer
 
+    def get_permissions(self):
+        # ESP32 devices create readings without user authentication.
+        if self.action == "create":
+            return [AllowAny()]
+        # Dashboard reads are authenticated.
+        return [IsAuthenticated()]
+
     def create(self, request, *args, **kwargs):
         serializer = ReadingCreateSerializer(data=request.data)
         if not serializer.is_valid():
@@ -160,6 +175,10 @@ class AlertViewSet(viewsets.ModelViewSet):
     filter_backends = [DjangoFilterBackend]
     filterset_fields = ["transformer"]
 
+    def get_permissions(self):
+        # Dashboard alert viewing/ack requires authentication.
+        return [IsAuthenticated()]
+
     @action(detail=True, methods=["patch"])
     def acknowledge(self, request, pk=None):
         alert = self.get_object()
@@ -179,3 +198,18 @@ class AlertViewSet(viewsets.ModelViewSet):
             transformer_id=transformer_id, acknowledged=False
         ).update(acknowledged=True)
         return Response({"acknowledged": count})
+
+
+class MeView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        user = request.user
+        return Response(
+            {
+                "id": user.id,
+                "username": user.username,
+                "is_staff": user.is_staff,
+                "is_superuser": user.is_superuser,
+            }
+        )

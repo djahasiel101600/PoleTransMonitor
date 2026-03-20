@@ -31,7 +31,6 @@ export const LoadingGauge = memo(function LoadingGauge({
   }
 
   const percent = Math.min(value, max);
-  const angle = 180 - (percent / 100) * 180;
   const status =
     value <= 100 ? "normal" : value <= 125 ? "warning" : "critical";
   const strokeColor =

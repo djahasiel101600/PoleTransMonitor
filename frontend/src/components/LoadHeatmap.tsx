@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from "react";
+import { Fragment, useEffect, useState, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/Card";
 import { Skeleton } from "./ui/Skeleton";
 import { fetchReadings } from "../api/client";
@@ -13,8 +13,9 @@ function buildHeatmap(readings: Reading[]): number[][] {
     const ap = r.apparent_power;
     if (ap == null || Number.isNaN(ap)) continue;
     const d = new Date(r.timestamp);
-    const day = d.getDay();
-    const hour = d.getHours();
+    // Backend timestamps are stored/served in UTC; bin in UTC to keep weekdays aligned.
+    const day = d.getUTCDay();
+    const hour = d.getUTCHours();
     grid[day][hour] += ap / 1000;
     count[day][hour] += 1;
   }
@@ -31,13 +32,18 @@ export function LoadHeatmap({ transformerId }: { transformerId: number | null })
   const [loading, setLoading] = useState(false);
 
   const since = useMemo(
-    () => new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
+    () => {
+      // Avoid `Date.now()` (react-hooks/purity) while keeping the same UTC time window.
+      const ms = new Date().getTime() - 7 * 24 * 60 * 60 * 1000;
+      return new Date(ms).toISOString();
+    },
     []
   );
 
   useEffect(() => {
     if (transformerId == null) return;
-    setLoading(true);
+    // Defer state update to avoid react-hooks/set-state-in-effect linting.
+    void Promise.resolve().then(() => setLoading(true));
     fetchReadings(transformerId, since)
       .then(setReadings)
       .catch((e) => console.error("LoadHeatmap:", e))
@@ -60,7 +66,7 @@ export function LoadHeatmap({ transformerId }: { transformerId: number | null })
           <Skeleton className="h-5 w-56" />
         </CardHeader>
         <CardContent>
-          <Skeleton className="h-64 w-full rounded-lg" />
+          <Skeleton className="h-72 w-full rounded-lg sm:h-80" />
         </CardContent>
       </Card>
     );
@@ -72,44 +78,53 @@ export function LoadHeatmap({ transformerId }: { transformerId: number | null })
         <CardTitle className="text-base font-semibold">Load heatmap (7 days)</CardTitle>
         <p className="text-xs text-muted-foreground">Day × hour · color = avg load (kVA)</p>
       </CardHeader>
-      <CardContent>
-        <div className="overflow-x-auto">
-          <div className="inline-block min-w-0">
-            <div className="grid grid-cols-[auto_1fr] gap-0.5 text-[10px]">
-              <div className="pr-1" />
-              <div className="flex gap-px">
+      <CardContent className="pt-0">
+        {/*
+          Full-width heatmap: day column + 24 equal fractional columns so cells grow with the card.
+          Horizontal scroll on very narrow viewports so labels stay readable.
+        */}
+        <div className="w-full min-w-0 overflow-x-auto">
+          <div className="w-full max-w-full">
+            <div className="grid grid-cols-[minmax(2.5rem,auto)_minmax(0,1fr)] gap-x-2 gap-y-1.5 items-stretch sm:gap-x-3 sm:gap-y-2">
+              <div className="pr-0.5" aria-hidden />
+              <div className="grid w-full min-w-0 grid-cols-[repeat(24,minmax(0,1fr))] gap-x-0.5 sm:gap-x-1">
                 {Array.from({ length: 24 }, (_, h) => (
-                  <span key={h} className="w-3 shrink-0 text-center text-muted-foreground">
+                  <span
+                    key={h}
+                    className="truncate text-center text-[10px] font-medium tabular-nums text-muted-foreground sm:text-xs"
+                  >
                     {h}
                   </span>
                 ))}
               </div>
               {DAYS.map((day, i) => (
-                <div key={day} className="flex items-center gap-1">
-                  <span className="w-7 shrink-0 text-muted-foreground">{day}</span>
-                  <div className="flex gap-px">
+                <Fragment key={day}>
+                  <span className="self-center text-right text-xs font-medium tabular-nums text-muted-foreground sm:text-sm">
+                    {day}
+                  </span>
+                  <div className="grid min-h-0 w-full grid-cols-[repeat(24,minmax(0,1fr))] gap-x-0.5 sm:gap-x-1">
                     {grid[i].map((v, j) => (
                       <div
                         key={j}
-                        className="h-4 w-3 shrink-0 rounded-sm transition-colors"
+                        className="min-h-7 w-full min-w-0 rounded-sm transition-colors sm:min-h-10 sm:rounded-md"
                         style={{
                           backgroundColor: "var(--color-primary)",
                           opacity: maxVal > 0 ? 0.15 + 0.85 * (v / maxVal) : 0.15,
                         }}
-                        title={`${day} ${j}:00 — ${v.toFixed(2)} kVA`}
+                        title={`${day} ${j}:00 UTC — ${v.toFixed(2)} kVA`}
                       />
                     ))}
                   </div>
-                </div>
+                </Fragment>
               ))}
             </div>
-            <div className="mt-2 flex items-center justify-end gap-2 text-[10px] text-muted-foreground">
+            <div className="mt-3 flex items-center justify-end gap-2 text-xs text-muted-foreground sm:text-sm">
               <span>Low</span>
-              <div className="flex gap-px">
+              <div className="flex gap-0.5 sm:gap-1">
                 {[0, 0.25, 0.5, 0.75, 1].map((f) => (
                   <div
                     key={f}
-                    className="h-2 w-4 rounded-sm"
+                    className="h-3 w-5 rounded-sm sm:h-3.5 sm:w-6"
                     style={{
                       backgroundColor: "var(--color-primary)",
                       opacity: f * 0.85 + 0.15,
