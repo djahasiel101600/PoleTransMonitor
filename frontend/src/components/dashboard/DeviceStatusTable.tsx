@@ -33,6 +33,18 @@ function headroomBadge(
   return { text: `Headroom ${headroom.toFixed(1)} kVA`, variant: "normal" };
 }
 
+/** Threshold (ms) to consider a non-selected transformer "recently seen". */
+const LAST_SEEN_STALE_MS = 60_000;
+
+function lastSeenStatus(
+  lastSeen: string | null | undefined,
+): "recent" | "stale" | "unknown" {
+  if (!lastSeen) return "unknown";
+  const age = Date.now() - new Date(lastSeen).getTime();
+  if (age < LAST_SEEN_STALE_MS) return "recent";
+  return "stale";
+}
+
 export function DeviceStatusTable({
   transformers,
   selectedId,
@@ -84,6 +96,7 @@ export function DeviceStatusTable({
         {transformers.map((t) => {
           const isSelected = selectedId === t.id;
           const live = isSelected && connected;
+          const seen = !isSelected ? lastSeenStatus(t.last_seen) : null;
           const lastUpdated =
             isSelected && reading
               ? formatRelativeTime(reading.timestamp)
@@ -107,8 +120,26 @@ export function DeviceStatusTable({
                   <span className="truncate text-sm font-medium text-foreground">
                     {t.name}
                   </span>
-                  <Badge variant={live ? "normal" : "default"}>
-                    {live ? "Live" : isSelected ? "Offline" : "—"}
+                  <Badge
+                    variant={
+                      live
+                        ? "normal"
+                        : !isSelected && seen === "recent"
+                          ? "normal"
+                          : !isSelected && seen === "stale"
+                            ? "warning"
+                            : "default"
+                    }
+                  >
+                    {live
+                      ? "Live"
+                      : isSelected
+                        ? "Offline"
+                        : seen === "recent"
+                          ? "Online"
+                          : seen === "stale"
+                            ? "Stale"
+                            : "—"}
                   </Badge>
                 </div>
 
@@ -169,6 +200,7 @@ export function DeviceStatusTable({
             {transformers.map((t) => {
               const isSelected = selectedId === t.id;
               const live = isSelected && connected;
+              const seen = !isSelected ? lastSeenStatus(t.last_seen) : null;
               const lastUpdated =
                 isSelected && reading
                   ? formatRelativeTime(reading.timestamp)
@@ -226,8 +258,26 @@ export function DeviceStatusTable({
 
                   <td className="px-4 py-3">
                     <div className="space-y-1">
-                      <Badge variant={live ? "normal" : "default"}>
-                        {live ? "Live" : isSelected ? "Offline" : "—"}
+                      <Badge
+                        variant={
+                          live
+                            ? "normal"
+                            : !isSelected && seen === "recent"
+                              ? "normal"
+                              : !isSelected && seen === "stale"
+                                ? "warning"
+                                : "default"
+                        }
+                      >
+                        {live
+                          ? "Live"
+                          : isSelected
+                            ? "Offline"
+                            : seen === "recent"
+                              ? "Online"
+                              : seen === "stale"
+                                ? "Stale"
+                                : "—"}
                       </Badge>
                       {lastUpdated ? (
                         <div className="text-xs text-muted-foreground">

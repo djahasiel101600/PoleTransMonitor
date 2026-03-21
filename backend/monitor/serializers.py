@@ -30,9 +30,10 @@ class TransformerSerializer(serializers.ModelSerializer):
             "sms_recipients",
             "sms_recipients_ids",
             "device_api_key",
+            "last_seen",
             "created_at",
         ]
-        read_only_fields = ["created_at"]
+        read_only_fields = ["created_at", "last_seen"]
 
     def get_device_api_key(self, obj):
         request = self.context.get("request")

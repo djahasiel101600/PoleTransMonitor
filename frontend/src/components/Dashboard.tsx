@@ -48,7 +48,7 @@ export function Dashboard() {
   const isAuthenticated = me != null;
   const isAuthenticating = !!accessToken && !isAuthenticated;
 
-  const { reading: wsReading, connected } = useMonitorWebSocket(
+  const { reading: wsReading, deviceOnline } = useMonitorWebSocket(
     isAuthenticated ? selectedId : null,
     accessToken,
   );
@@ -179,7 +179,7 @@ export function Dashboard() {
           setActiveTab("management");
           setShowAddTransformer(true);
         }}
-        connected={connected}
+        connected={deviceOnline}
         onLogout={logout}
         theme={theme}
         onToggleTheme={toggleTheme}
@@ -226,7 +226,7 @@ export function Dashboard() {
               selectedId={selectedId}
               selectedTransformer={selectedTransformer ?? null}
               reading={displayReading}
-              connected={connected}
+              connected={deviceOnline}
               loading={uiLoading}
               insights24h={insights24h}
               recentReadingsForSparkline={recentReadingsForSparkline}

@@ -42,6 +42,7 @@ def broadcast_reading(reading):
             "energy_kwh": adjusted_energy,
             "condition": reading.condition,
         },
+        "last_seen": reading.timestamp.isoformat(),
     }
     async_to_sync(channel_layer.group_send)(group_name, payload)
 

@@ -19,6 +19,8 @@ export interface Transformer {
   phone_number?: string | null;
   /** Present for staff only; used as X-Device-Key on the ESP32 */
   device_api_key?: string | null;
+  /** Last time the device posted a reading (ISO string, set by backend) */
+  last_seen?: string | null;
   created_at: string;
 }
 

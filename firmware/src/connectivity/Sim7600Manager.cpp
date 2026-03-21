@@ -7,10 +7,11 @@
 // Use Serial2 to match working firmware_a7670e_test (test uses HardwareSerial(2))
 #define SerialAT Serial2
 
-static TinyGsm* modem = nullptr;
+static TinyGsm *modem = nullptr;
 
 // Match firmware_a7670e_test: power-on pulse then wait and drain boot output
-static void modemPowerOn(int pwrPin) {
+static void modemPowerOn(int pwrPin)
+{
   pinMode(pwrPin, OUTPUT);
   digitalWrite(pwrPin, HIGH);
   delay(100);
@@ -22,19 +23,24 @@ static void modemPowerOn(int pwrPin) {
 #endif
   delay(2000);
   uint32_t bootEnd = millis() + 6000;
-  while (millis() < bootEnd) {
-    while (SerialAT.available()) SerialAT.read();
+  while (millis() < bootEnd)
+  {
+    while (SerialAT.available())
+      SerialAT.read();
     delay(30);
   }
-  while (SerialAT.available()) SerialAT.read();
+  while (SerialAT.available())
+    SerialAT.read();
   delay(50);
 }
 
-void Sim7600Manager::begin(int rxPin, int txPin, int baud, int pwrPin) {
+void Sim7600Manager::begin(int rxPin, int txPin, int baud, int pwrPin)
+{
   rxPin_ = rxPin;
   txPin_ = txPin;
 #if defined(SIM_SWAP_RX_TX) && (SIM_SWAP_RX_TX)
-  if (rxPin != 34 && rxPin != 35 && rxPin != 36 && rxPin != 39) {
+  if (rxPin != 34 && rxPin != 35 && rxPin != 36 && rxPin != 39)
+  {
     rxPin_ = txPin;
     txPin_ = rxPin;
   }
@@ -49,25 +55,32 @@ void Sim7600Manager::begin(int rxPin, int txPin, int baud, int pwrPin) {
   SerialAT.begin(baud_, SERIAL_8N1, rxPin_, txPin_);
   delay(500);
 
-  if (pwrPin > 0) {
+  if (pwrPin > 0)
+  {
     modemPowerOn(pwrPin);
-  } else {
+  }
+  else
+  {
 #if DEBUG_SERIAL
     Serial.println("[DEBUG SIM] No PWR pin, waiting 8s for modem...");
 #endif
     delay(8000);
-    while (SerialAT.available()) SerialAT.read();
+    while (SerialAT.available())
+      SerialAT.read();
   }
 
-  if (!modem) {
+  if (!modem)
+  {
     modem = new TinyGsm(SerialAT);
   }
   modem->init();
   initialized_ = false;
 
   // Try AT at current baud (same as test: 5 retries, 3s timeout)
-  for (int retry = 0; retry < 5; retry++) {
-    if (modem->testAT(3000L)) {
+  for (int retry = 0; retry < 5; retry++)
+  {
+    if (modem->testAT(3000L))
+    {
       initialized_ = true;
 #if DEBUG_SERIAL
       Serial.printf("[DEBUG SIM] AT OK at %d baud\n", (int)baud_);
@@ -78,11 +91,13 @@ void Sim7600Manager::begin(int rxPin, int txPin, int baud, int pwrPin) {
     Serial.printf("[DEBUG SIM] testAT retry %d/5\n", retry + 1);
 #endif
     delay(400);
-    while (SerialAT.available()) SerialAT.read();
+    while (SerialAT.available())
+      SerialAT.read();
   }
 
   // If no AT at 9600, try 115200 (like working test)
-  if (!initialized_ && baud_ == 9600) {
+  if (!initialized_ && baud_ == 9600)
+  {
 #if DEBUG_SERIAL
     Serial.println("[DEBUG SIM] No AT at 9600, trying 115200...");
 #endif
@@ -91,10 +106,13 @@ void Sim7600Manager::begin(int rxPin, int txPin, int baud, int pwrPin) {
     SerialAT.begin(115200, SERIAL_8N1, rxPin_, txPin_);
     baud_ = 115200;
     delay(300);
-    while (SerialAT.available()) SerialAT.read();
+    while (SerialAT.available())
+      SerialAT.read();
     modem->init();
-    for (int retry = 0; retry < 5; retry++) {
-      if (modem->testAT(3000L)) {
+    for (int retry = 0; retry < 5; retry++)
+    {
+      if (modem->testAT(3000L))
+      {
         initialized_ = true;
 #if DEBUG_SERIAL
         Serial.println("[DEBUG SIM] AT OK at 115200");
@@ -102,7 +120,8 @@ void Sim7600Manager::begin(int rxPin, int txPin, int baud, int pwrPin) {
         break;
       }
       delay(400);
-      while (SerialAT.available()) SerialAT.read();
+      while (SerialAT.available())
+        SerialAT.read();
     }
   }
 
@@ -110,7 +129,8 @@ void Sim7600Manager::begin(int rxPin, int txPin, int baud, int pwrPin) {
   Serial.printf("[DEBUG SIM] init done, testAT=%s\n", initialized_ ? "OK" : "FAIL");
 #endif
 
-  if (initialized_) {
+  if (initialized_)
+  {
 #if DEBUG_SERIAL
     Serial.println("[DEBUG SIM] waiting for network...");
 #endif
@@ -122,12 +142,91 @@ void Sim7600Manager::begin(int rxPin, int txPin, int baud, int pwrPin) {
   }
 }
 
-bool Sim7600Manager::isReady() {
+bool Sim7600Manager::isReady()
+{
   return initialized_ && modem && modem->testAT();
 }
 
-bool Sim7600Manager::sendSms(const char* recipient, const char* message) {
-  if (!initialized_ || !modem) return false;
+bool Sim7600Manager::getOwnNumber(char *buf, size_t bufLen)
+{
+  if (!initialized_ || bufLen == 0)
+    return false;
+  buf[0] = '\0';
+
+  // Drain any pending data
+  while (SerialAT.available())
+    SerialAT.read();
+
+  SerialAT.println("AT+CNUM");
+  delay(500);
+
+  // Read response lines looking for +CNUM: ...,"+1234567890",...
+  char line[128];
+  size_t lineLen = 0;
+  uint32_t deadline = millis() + 2000;
+  bool found = false;
+
+  while (millis() < deadline && !found)
+  {
+    while (SerialAT.available() && !found)
+    {
+      char c = (char)SerialAT.read();
+      if (c == '\r' || c == '\n')
+      {
+        if (lineLen > 0)
+        {
+          line[lineLen] = '\0';
+          // +CNUM: "","+639123456789",145  or  +CNUM: "Own Number","+639123456789",145
+          if (strncmp(line, "+CNUM:", 6) == 0)
+          {
+            // Find second quoted string (the phone number)
+            const char *p = strchr(line + 6, '"');
+            if (p)
+            {
+              p = strchr(p + 1, '"'); // end of first quoted string
+              if (p)
+              {
+                p = strchr(p + 1, '"'); // start of second quoted string
+                if (p)
+                {
+                  p++;
+                  const char *q = strchr(p, '"');
+                  if (q && (size_t)(q - p) > 0 && (size_t)(q - p) < bufLen)
+                  {
+                    memcpy(buf, p, (size_t)(q - p));
+                    buf[q - p] = '\0';
+                    found = true;
+                  }
+                }
+              }
+            }
+          }
+          lineLen = 0;
+        }
+      }
+      else if (lineLen < sizeof(line) - 1)
+      {
+        line[lineLen++] = c;
+      }
+    }
+    if (!found)
+      delay(10);
+  }
+
+  // Drain remaining
+  while (SerialAT.available())
+    SerialAT.read();
+
+#if DEBUG_SERIAL
+  Serial.printf("[DEBUG SIM] AT+CNUM own number: %s\n", found ? buf : "(not found)");
+#endif
+  return found && buf[0] != '\0';
+}
+
+bool Sim7600Manager::sendSms(const char *recipient, const char *message)
+{
+  if (!initialized_ || !modem)
+    return false;
 #if DEBUG_SERIAL
   Serial.printf("[DEBUG SIM] sendSms to %s\n", recipient);
 #endif
@@ -138,18 +237,24 @@ bool Sim7600Manager::sendSms(const char* recipient, const char* message) {
   return ok;
 }
 
-void Sim7600Manager::enableSmsIndication() {
-  if (!initialized_) return;
-  while (SerialAT.available()) SerialAT.read();
+void Sim7600Manager::enableSmsIndication()
+{
+  if (!initialized_)
+    return;
+  while (SerialAT.available())
+    SerialAT.read();
   // Text mode required for +CMT to deliver message body as text
   SerialAT.println("AT+CMGF=1");
   delay(300);
-  while (SerialAT.available()) SerialAT.read();
+  while (SerialAT.available())
+    SerialAT.read();
   SerialAT.println("AT+CNMI=1,2,0,0,0");
   delay(100);
   uint32_t deadline = millis() + 2000;
-  while (millis() < deadline) {
-    while (SerialAT.available()) SerialAT.read();
+  while (millis() < deadline)
+  {
+    while (SerialAT.available())
+      SerialAT.read();
     delay(10);
   }
 #if DEBUG_SERIAL
@@ -158,42 +263,54 @@ void Sim7600Manager::enableSmsIndication() {
 }
 
 // Parse sender from +CMT: "+number","","date" — first quoted string.
-static void parseCmtSender(const char* line, char* out, size_t outLen) {
+static void parseCmtSender(const char *line, char *out, size_t outLen)
+{
   out[0] = '\0';
-  const char* p = strchr(line, '"');
-  if (!p) return;
+  const char *p = strchr(line, '"');
+  if (!p)
+    return;
   p++;
-  const char* q = strchr(p, '"');
-  if (!q || (size_t)(q - p) >= outLen) return;
+  const char *q = strchr(p, '"');
+  if (!q || (size_t)(q - p) >= outLen)
+    return;
   memcpy(out, p, (size_t)(q - p));
   out[q - p] = '\0';
 }
 
 // Trim leading/trailing space from s in place; return s.
-static char* trimInPlace(char* s) {
-  while (*s == ' ' || *s == '\t' || *s == '\r' || *s == '\n') s++;
-  char* t = s + strcspn(s, "\r\n");
-  while (t > s && (t[-1] == ' ' || t[-1] == '\t' || t[-1] == '\r' || t[-1] == '\n')) t--;
+static char *trimInPlace(char *s)
+{
+  while (*s == ' ' || *s == '\t' || *s == '\r' || *s == '\n')
+    s++;
+  char *t = s + strcspn(s, "\r\n");
+  while (t > s && (t[-1] == ' ' || t[-1] == '\t' || t[-1] == '\r' || t[-1] == '\n'))
+    t--;
   *t = '\0';
   return s;
 }
 
-bool Sim7600Manager::pollIncomingSms(char* sender, size_t senderLen, char* body, size_t bodyLen) {
-  if (!initialized_ || senderLen == 0 || bodyLen == 0) return false;
+bool Sim7600Manager::pollIncomingSms(char *sender, size_t senderLen, char *body, size_t bodyLen)
+{
+  if (!initialized_ || senderLen == 0 || bodyLen == 0)
+    return false;
   sender[0] = '\0';
   body[0] = '\0';
 
   static char lineBuf[256];
   static size_t lineLen = 0;
   static bool nextLineIsBody = false;
-  static char savedSender[32];  // keep sender until we have the body line
+  static char savedSender[32]; // keep sender until we have the body line
 
-  while (SerialAT.available()) {
+  while (SerialAT.available())
+  {
     char c = (char)SerialAT.read();
-    if (c == '\r' || c == '\n') {
-      if (lineLen > 0) {
+    if (c == '\r' || c == '\n')
+    {
+      if (lineLen > 0)
+      {
         lineBuf[lineLen] = '\0';
-        if (nextLineIsBody) {
+        if (nextLineIsBody)
+        {
           nextLineIsBody = false;
           strncpy(sender, savedSender, senderLen - 1);
           sender[senderLen - 1] = '\0';
@@ -202,15 +319,20 @@ bool Sim7600Manager::pollIncomingSms(char* sender, size_t senderLen, char* body,
           lineLen = 0;
           return true;
         }
-        if (strncmp(lineBuf, "+CMT:", 5) == 0) {
+        if (strncmp(lineBuf, "+CMT:", 5) == 0)
+        {
           parseCmtSender(lineBuf, savedSender, sizeof(savedSender));
           nextLineIsBody = true;
         }
         lineLen = 0;
       }
-    } else if (c >= 32 || c == '\t') {
-      if (lineLen < sizeof(lineBuf) - 1) lineBuf[lineLen++] = c;
-      else lineLen = 0;
+    }
+    else if (c >= 32 || c == '\t')
+    {
+      if (lineLen < sizeof(lineBuf) - 1)
+        lineBuf[lineLen++] = c;
+      else
+        lineLen = 0;
     }
   }
   return false;

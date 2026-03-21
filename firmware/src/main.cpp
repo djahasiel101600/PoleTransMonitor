@@ -20,16 +20,17 @@ ThresholdEvaluator evaluator;
 AlertManager alertMgr;
 ConfigManager configMgr;
 BackendClient backendClient;
-WiFiManager wm;  // library: config portal + WiFi connect
+WiFiManager wm; // library: config portal + WiFi connect
 #if ENABLE_SIM
 Sim7600Manager sim7600;
+static char simPhoneNumber[32] = {0};
 #endif
 
 // Persistent WiFiManager parameters.
 // These must outlive `setup()` because we may open the portal later via button long-press.
-static WiFiManagerParameter* pBackendUrlParam = nullptr;
-static WiFiManagerParameter* pTransformerIdParam = nullptr;
-static WiFiManagerParameter* pDeviceKeyParam = nullptr;
+static WiFiManagerParameter *pBackendUrlParam = nullptr;
+static WiFiManagerParameter *pTransformerIdParam = nullptr;
+static WiFiManagerParameter *pDeviceKeyParam = nullptr;
 static char transformerIdBuf[8];
 static char deviceKeyBuf[ConfigManager::DEVICE_KEY_MAX];
 
@@ -39,10 +40,13 @@ static bool waitingForPortalButtonRelease = false;
 
 static void syncDeviceProfileFromServer();
 
-static bool checkAndOpenPortalByLongPress() {
+static bool checkAndOpenPortalByLongPress()
+{
   // Optional "cooldown": require button release before re-arming.
-  if (waitingForPortalButtonRelease) {
-    if (digitalRead(PORTAL_BUTTON_GPIO) != LOW) {
+  if (waitingForPortalButtonRelease)
+  {
+    if (digitalRead(PORTAL_BUTTON_GPIO) != LOW)
+    {
       waitingForPortalButtonRelease = false;
       portalButtonPressedAtMs = 0;
     }
@@ -50,19 +54,22 @@ static bool checkAndOpenPortalByLongPress() {
   }
 
   const bool pressed = (digitalRead(PORTAL_BUTTON_GPIO) == LOW);
-  if (!pressed) {
+  if (!pressed)
+  {
     portalButtonPressedAtMs = 0;
     return false;
   }
 
-  if (portalButtonPressedAtMs == 0) {
+  if (portalButtonPressedAtMs == 0)
+  {
     portalButtonPressedAtMs = millis();
     return false;
   }
 
-  if (millis() - portalButtonPressedAtMs >= (unsigned long)PORTAL_LONG_PRESS_MS) {
+  if (millis() - portalButtonPressedAtMs >= (unsigned long)PORTAL_LONG_PRESS_MS)
+  {
     Serial.println("Button long-press detected: opening config portal...");
-    wm.startConfigPortal("PoleTransMonitor-Setup", "config123");  // blocks until portal closes
+    wm.startConfigPortal("PoleTransMonitor-Setup", "config123"); // blocks until portal closes
 
     // Reload settings in case user changed backend URL / transformer ID.
     configMgr.load();
@@ -86,10 +93,19 @@ EvalParams evalParams;
 static bool lastWiFiConnected = false;
 #endif
 
-static void syncDeviceProfileFromServer() {
-  if (WiFi.status() != WL_CONNECTED) return;
-  if (!configMgr.getDeviceApiKey()[0]) return;
-  if (backendClient.fetchDeviceConfig(configMgr.getDeviceApiKey(), configMgr)) {
+static void syncDeviceProfileFromServer()
+{
+  if (WiFi.status() != WL_CONNECTED)
+    return;
+  if (!configMgr.getDeviceApiKey()[0])
+    return;
+#if ENABLE_SIM
+  const char *phone = simPhoneNumber[0] ? simPhoneNumber : nullptr;
+#else
+  const char *phone = nullptr;
+#endif
+  if (backendClient.fetchDeviceConfig(configMgr.getDeviceApiKey(), configMgr, phone))
+  {
     EvalParams ep;
     configMgr.fillEvalParams(ep);
     evaluator.setParams(ep);
@@ -97,11 +113,14 @@ static void syncDeviceProfileFromServer() {
     Serial.printf("[DEBUG] Device profile synced: Vn=%.1f V Fn=%.1f Hz In=%.1f A Sn=%.0f VA\n",
                   ep.nominalVoltage, ep.nominalFreq, ep.ratedCurrent, ep.ratedApparentPower);
 #endif
-  } else {
+  }
+  else
+  {
 #if DEBUG_SERIAL
     static unsigned long lastFailLogMs = 0;
     const unsigned long m = millis();
-    if (m - lastFailLogMs > 120000) {
+    if (m - lastFailLogMs > 120000)
+    {
       lastFailLogMs = m;
       Serial.println("[DEBUG] device_config fetch failed (URL, Transformer ID, Device API key)");
     }
@@ -109,7 +128,8 @@ static void syncDeviceProfileFromServer() {
   }
 }
 
-void setup() {
+void setup()
+{
   Serial.begin(115200);
   delay(1000);
   Serial.println("PoleTransMonitor starting...");
@@ -150,25 +170,30 @@ void setup() {
   wm.addParameter(pTransformerIdParam);
   wm.addParameter(pDeviceKeyParam);
 
-  wm.setSaveConfigCallback([]() {
-    configMgr.setBackendUrl(pBackendUrlParam->getValue());
-    int tid = atoi(pTransformerIdParam->getValue());
-    if (tid > 0) configMgr.setTransformerId(tid);
-    configMgr.setDeviceApiKey(pDeviceKeyParam->getValue());
-    configMgr.save();
+  wm.setSaveConfigCallback([]()
+                           {
+                             configMgr.setBackendUrl(pBackendUrlParam->getValue());
+                             int tid = atoi(pTransformerIdParam->getValue());
+                             if (tid > 0)
+                               configMgr.setTransformerId(tid);
+                             configMgr.setDeviceApiKey(pDeviceKeyParam->getValue());
+                             configMgr.save();
 #if DEBUG_SERIAL
-    Serial.println("[DEBUG] Config saved: backend URL, transformer ID, device API key");
+                             Serial.println("[DEBUG] Config saved: backend URL, transformer ID, device API key");
 #endif
-  });
+                           });
 
   Serial.println("WiFi: if config portal opens, connect to AP \"PoleTransMonitor-Setup\" (password: config123)");
   Serial.println("      then open in browser: http://192.168.4.1");
   bool connected = wm.autoConnect("PoleTransMonitor-Setup", "config123");
-  if (connected) {
+  if (connected)
+  {
 #if DEBUG_SERIAL
     Serial.printf("[DEBUG] WiFi connected to %s\n", WiFi.SSID().c_str());
 #endif
-  } else {
+  }
+  else
+  {
 #if DEBUG_SERIAL
     Serial.println("[DEBUG] Config portal closed without connecting. Retrying...");
 #endif
@@ -181,18 +206,25 @@ void setup() {
 #if ENABLE_SIM
   sim7600.begin(SIM_RX_PIN, SIM_TX_PIN, SIM_BAUD, SIM_PWR_PIN);
 #if defined(SEND_TEST_SMS_ON_BOOT) && SEND_TEST_SMS_ON_BOOT
-  if (sim7600.isReady()) {
-    if (sim7600.sendSms(SMS_RECIPIENT, TEST_SMS_MESSAGE)) {
+  if (sim7600.isReady())
+  {
+    if (sim7600.sendSms(SMS_RECIPIENT, TEST_SMS_MESSAGE))
+    {
       Serial.println("[DEBUG] Test SMS sent to " SMS_RECIPIENT);
-    } else {
+    }
+    else
+    {
       Serial.println("[DEBUG] Test SMS failed");
     }
-  } else {
+  }
+  else
+  {
     Serial.println("[DEBUG] Test SMS skipped (modem not ready)");
   }
 #endif
 #if defined(ENABLE_SMS_STATUS_REPLY) && ENABLE_SMS_STATUS_REPLY
-  if (sim7600.isReady()) {
+  if (sim7600.isReady())
+  {
     sim7600.enableSmsIndication();
 #if DEBUG_SERIAL
     Serial.println("[DEBUG] SMS status reply ON: send \"" SMS_STATUS_COMMAND "\" to get transformer status");
@@ -201,18 +233,36 @@ void setup() {
 #endif
 #endif
 
+  // Query SIM own phone number and re-sync config so backend gets it
+#if ENABLE_SIM
+  if (sim7600.isReady())
+  {
+    if (sim7600.getOwnNumber(simPhoneNumber, sizeof(simPhoneNumber)))
+    {
+#if DEBUG_SERIAL
+      Serial.printf("[DEBUG] SIM own number: %s\n", simPhoneNumber);
+#endif
+      syncDeviceProfileFromServer();
+    }
+  }
+#endif
+
   alertMgr.setDebounceMs(60000);
 }
 
-void loop() {
+void loop()
+{
   // If the user long-presses the button, pause normal operation while portal is open.
-  if (checkAndOpenPortalByLongPress()) {
+  if (checkAndOpenPortalByLongPress())
+  {
     return;
   }
 
-  if (WiFi.status() != WL_CONNECTED) {
+  if (WiFi.status() != WL_CONNECTED)
+  {
     static unsigned long lastReconnect = 0;
-    if (millis() - lastReconnect >= 10000) {
+    if (millis() - lastReconnect >= 10000)
+    {
       lastReconnect = millis();
       WiFi.reconnect();
     }
@@ -223,14 +273,17 @@ void loop() {
   const unsigned long nowMs = millis();
 
   static unsigned long lastProfileSyncMs = 0;
-  if (WiFi.status() == WL_CONNECTED && configMgr.getDeviceApiKey()[0]) {
-    if (nowMs - lastProfileSyncMs >= (unsigned long)DEVICE_CONFIG_REFRESH_MS) {
+  if (WiFi.status() == WL_CONNECTED && configMgr.getDeviceApiKey()[0])
+  {
+    if (nowMs - lastProfileSyncMs >= (unsigned long)DEVICE_CONFIG_REFRESH_MS)
+    {
       lastProfileSyncMs = nowMs;
       syncDeviceProfileFromServer();
     }
   }
 
-  if (nowMs - lastSampleMs < (unsigned long)SAMPLE_INTERVAL_MS) {
+  if (nowMs - lastSampleMs < (unsigned long)SAMPLE_INTERVAL_MS)
+  {
     delay(20);
     return;
   }
@@ -246,150 +299,201 @@ void loop() {
   sensorData.frequency = pzemRead.valid ? pzemRead.frequency : NAN;
   // Treat obviously invalid oil temp (sensor error) as no reading
   sensorData.oilTemp = (!isnan(oilTempC) && oilTempC >= -50.0f && oilTempC <= 200.0f)
-                          ? oilTempC
-                          : (float)NAN;
+                           ? oilTempC
+                           : (float)NAN;
 
-  const char* condition = evaluator.evaluate(sensorData);
+  const char *condition = evaluator.evaluate(sensorData);
 
 #if DEBUG_SERIAL
   bool wifiConnected = (WiFi.status() == WL_CONNECTED);
-  if (wifiConnected && !lastWiFiConnected) {
+  if (wifiConnected && !lastWiFiConnected)
+  {
     Serial.println("[DEBUG] WiFi connected");
   }
   lastWiFiConnected = wifiConnected;
 
   Serial.printf("[DEBUG PZEM] raw V=%.2f A=%.3f W=%.1f Wh=%.1f PF=%.2f Hz=%.2f valid=%s\n",
-    pzemRead.voltage, pzemRead.current, pzemRead.power, pzemRead.energy,
-    pzemRead.powerFactor, pzemRead.frequency, pzemRead.valid ? "yes" : "no");
+                pzemRead.voltage, pzemRead.current, pzemRead.power, pzemRead.energy,
+                pzemRead.powerFactor, pzemRead.frequency, pzemRead.valid ? "yes" : "no");
 
   uint8_t oilFault = oilTemp.readFault();
   bool oilValid = !isnan(oilTempC) && oilTempC >= -50.0f && oilTempC <= 200.0f;
   Serial.printf("[DEBUG OIL] raw=%.2f C valid=%s fault=0x%02X",
-    oilTempC, oilValid ? "yes" : "no", oilFault);
-  if (oilFault) {
-    if (oilFault & 0x08) Serial.print(" RTDopen");
-    if (oilFault & 0x20) Serial.print(" RefLow");
-    if (oilFault & 0x10) Serial.print(" RefHigh");
-    if (oilFault & 0x04) Serial.print(" OVUV");
-    if (oilFault & 0x40) Serial.print(" LowThresh");
-    if (oilFault & 0x80) Serial.print(" HighThresh");
+                oilTempC, oilValid ? "yes" : "no", oilFault);
+  if (oilFault)
+  {
+    if (oilFault & 0x08)
+      Serial.print(" RTDopen");
+    if (oilFault & 0x20)
+      Serial.print(" RefLow");
+    if (oilFault & 0x10)
+      Serial.print(" RefHigh");
+    if (oilFault & 0x04)
+      Serial.print(" OVUV");
+    if (oilFault & 0x40)
+      Serial.print(" LowThresh");
+    if (oilFault & 0x80)
+      Serial.print(" HighThresh");
   }
   Serial.println();
 
   Serial.printf("[DEBUG] V=%.1f A=%.2f VA=%.0f PF=%.2f Hz=%.1f Oil=%.1f C | %s\n",
-    sensorData.voltage, sensorData.current, sensorData.apparentPower,
-    sensorData.powerFactor, sensorData.frequency, sensorData.oilTemp, condition);
+                sensorData.voltage, sensorData.current, sensorData.apparentPower,
+                sensorData.powerFactor, sensorData.frequency, sensorData.oilTemp, condition);
 #endif
 
-  if (WiFi.status() == WL_CONNECTED && configMgr.isActive()) {
+  if (WiFi.status() == WL_CONNECTED && configMgr.isActive())
+  {
     ReadingPayload payload = {
-      .transformerId = configMgr.getTransformerId(),
-      .voltage = sensorData.voltage,
-      .current = sensorData.current,
-      .apparentPower = sensorData.apparentPower,
-      .realPower = pzemRead.valid ? pzemRead.power : (float)NAN,
-      .powerFactor = sensorData.powerFactor,
-      .frequency = sensorData.frequency,
-      .oilTemp = sensorData.oilTemp,
-      .energyKwh = pzemRead.valid
-          ? ((!isnan(pzemRead.energy) && pzemRead.energy >= 0.0f) ? pzemRead.energy : 0.0f)
-          : (float)NAN,
-      .condition = condition,
+        .transformerId = configMgr.getTransformerId(),
+        .voltage = sensorData.voltage,
+        .current = sensorData.current,
+        .apparentPower = sensorData.apparentPower,
+        .realPower = pzemRead.valid ? pzemRead.power : (float)NAN,
+        .powerFactor = sensorData.powerFactor,
+        .frequency = sensorData.frequency,
+        .oilTemp = sensorData.oilTemp,
+        .energyKwh = (pzemRead.valid && !isnan(pzemRead.energy) && pzemRead.energy >= 0.0f)
+                         ? pzemRead.energy
+                         : (float)NAN,
+        .condition = condition,
     };
     int httpStatus = backendClient.postReadingWithStatus(payload);
 #if DEBUG_SERIAL
-    if (httpStatus >= 200 && httpStatus < 300) {
+    if (httpStatus >= 200 && httpStatus < 300)
+    {
       Serial.println("[DEBUG] POST /api/readings/ OK");
-    } else if (httpStatus == -1) {
+    }
+    else if (httpStatus == -1)
+    {
       Serial.println("[DEBUG] POST skipped (WiFi not connected)");
-    } else {
+    }
+    else
+    {
       Serial.printf("[DEBUG] POST /api/readings/ failed HTTP %d\n", httpStatus);
     }
 #endif
   }
 
-  #if ENABLE_SIM
-  if (configMgr.isActive() && alertMgr.shouldSendSms(condition)) {
+#if ENABLE_SIM
+  if (configMgr.isActive() && alertMgr.shouldSendSms(condition))
+  {
     char msg[128];
     snprintf(msg, sizeof(msg), "PoleTransMonitor ALERT: %s", condition);
     bool anyOk = false;
 
-    const char* csv = configMgr.getSmsRecipientsCsv();
-    if (csv && csv[0]) {
+    const char *csv = configMgr.getSmsRecipientsCsv();
+    if (csv && csv[0])
+    {
       const size_t RECIP_MAX = 40;
       char recipient[RECIP_MAX];
 
-      const char* p = csv;
-      while (*p) {
+      const char *p = csv;
+      while (*p)
+      {
         // Skip separators/whitespace
-        while (*p == ',' || *p == ' ' || *p == '\t' || *p == '\r' || *p == '\n') p++;
-        if (!*p) break;
+        while (*p == ',' || *p == ' ' || *p == '\t' || *p == '\r' || *p == '\n')
+          p++;
+        if (!*p)
+          break;
 
         size_t n = 0;
-        while (*p && *p != ',' && n < RECIP_MAX - 1) {
+        while (*p && *p != ',' && n < RECIP_MAX - 1)
+        {
           recipient[n++] = *p++;
         }
         recipient[n] = '\0';
 
         // Trim trailing whitespace
-        while (n > 0 && (recipient[n - 1] == ' ' || recipient[n - 1] == '\t')) {
+        while (n > 0 && (recipient[n - 1] == ' ' || recipient[n - 1] == '\t'))
+        {
           recipient[n - 1] = '\0';
           n--;
         }
 
-        if (recipient[0] && sim7600.sendSms(recipient, msg)) {
+        if (recipient[0] && sim7600.sendSms(recipient, msg))
+        {
           Serial.printf("SMS sent to %s: %s\n", recipient, condition);
           anyOk = true;
         }
 
         // Move past comma if present
-        if (*p == ',') p++;
+        if (*p == ',')
+          p++;
       }
-    } else {
+    }
+    else
+    {
       // Fallback to compile-time recipient if backend has none selected.
-      if (sim7600.sendSms(SMS_RECIPIENT, msg)) {
+      if (sim7600.sendSms(SMS_RECIPIENT, msg))
+      {
         Serial.printf("SMS sent to %s: %s\n", SMS_RECIPIENT, condition);
         anyOk = true;
-      } else {
+      }
+      else
+      {
         Serial.printf("SMS failed for %s\n", condition);
       }
     }
 
-    if (anyOk) alertMgr.markSent(condition);
+    if (anyOk)
+      alertMgr.markSent(condition);
   }
 
 #if defined(ENABLE_SMS_STATUS_REPLY) && ENABLE_SMS_STATUS_REPLY
   {
     char sender[32];
     char body[128];
-    if (sim7600.pollIncomingSms(sender, sizeof(sender), body, sizeof(body))) {
+    if (sim7600.pollIncomingSms(sender, sizeof(sender), body, sizeof(body)))
+    {
 #if DEBUG_SERIAL
       Serial.printf("[DEBUG] Incoming SMS from %s body=\"%s\"\n", sender, body);
 #endif
       // Case-insensitive match of body to status command (trimmed body already from pollIncomingSms)
       char cmd[32];
       size_t i = 0;
-      while (body[i] && i < sizeof(cmd) - 1) {
+      while (body[i] && i < sizeof(cmd) - 1)
+      {
         cmd[i] = (char)toupper((unsigned char)body[i]);
         i++;
       }
       cmd[i] = '\0';
-      if (strcmp(cmd, SMS_STATUS_COMMAND) == 0) {
+      if (strcmp(cmd, SMS_STATUS_COMMAND) == 0)
+      {
 #if DEBUG_SERIAL
         Serial.printf("[DEBUG] Sending status reply to %s\n", sender);
 #endif
         // Format electrical parameters for SMS (single segment; n/a for invalid)
         char statusMsg[160];
         char v[12], a[12], va[12], pf[12], hz[12], oil[12];
-        if (!isnan(sensorData.voltage)) snprintf(v, sizeof(v), "%.1f", sensorData.voltage); else strcpy(v, "n/a");
-        if (!isnan(sensorData.current)) snprintf(a, sizeof(a), "%.2f", sensorData.current); else strcpy(a, "n/a");
-        if (!isnan(sensorData.apparentPower)) snprintf(va, sizeof(va), "%.0f", sensorData.apparentPower); else strcpy(va, "n/a");
-        if (!isnan(sensorData.powerFactor)) snprintf(pf, sizeof(pf), "%.2f", sensorData.powerFactor); else strcpy(pf, "n/a");
-        if (!isnan(sensorData.frequency)) snprintf(hz, sizeof(hz), "%.1f", sensorData.frequency); else strcpy(hz, "n/a");
-        if (!isnan(sensorData.oilTemp)) snprintf(oil, sizeof(oil), "%.1f", sensorData.oilTemp); else strcpy(oil, "n/a");
+        if (!isnan(sensorData.voltage))
+          snprintf(v, sizeof(v), "%.1f", sensorData.voltage);
+        else
+          strcpy(v, "n/a");
+        if (!isnan(sensorData.current))
+          snprintf(a, sizeof(a), "%.2f", sensorData.current);
+        else
+          strcpy(a, "n/a");
+        if (!isnan(sensorData.apparentPower))
+          snprintf(va, sizeof(va), "%.0f", sensorData.apparentPower);
+        else
+          strcpy(va, "n/a");
+        if (!isnan(sensorData.powerFactor))
+          snprintf(pf, sizeof(pf), "%.2f", sensorData.powerFactor);
+        else
+          strcpy(pf, "n/a");
+        if (!isnan(sensorData.frequency))
+          snprintf(hz, sizeof(hz), "%.1f", sensorData.frequency);
+        else
+          strcpy(hz, "n/a");
+        if (!isnan(sensorData.oilTemp))
+          snprintf(oil, sizeof(oil), "%.1f", sensorData.oilTemp);
+        else
+          strcpy(oil, "n/a");
         snprintf(statusMsg, sizeof(statusMsg), "V=%s A=%s VA=%s PF=%s Hz=%s Oil=%sC | %s",
                  v, a, va, pf, hz, oil, condition ? condition : "?");
-        if (sim7600.sendSms(sender, statusMsg)) {
+        if (sim7600.sendSms(sender, statusMsg))
+        {
 #if DEBUG_SERIAL
           Serial.printf("[DEBUG] Status SMS sent to %s\n", sender);
 #endif
@@ -399,5 +503,4 @@ void loop() {
   }
 #endif
 #endif
-
 }

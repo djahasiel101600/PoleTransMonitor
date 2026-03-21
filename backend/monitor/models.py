@@ -51,6 +51,8 @@ class Transformer(models.Model):
     is_active = models.BooleanField(default=True)
     # Per-transformer secret for ESP32 to fetch device_config (header X-Device-Key). Auto-generated if empty.
     device_api_key = models.CharField(max_length=64, blank=True, default="")
+    # Automatically updated every time the device POSTs a reading.
+    last_seen = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

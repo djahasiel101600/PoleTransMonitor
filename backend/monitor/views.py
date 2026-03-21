@@ -128,6 +128,13 @@ class TransformerViewSet(viewsets.ModelViewSet):
         nv = float(transformer.nominal_voltage or 220)
         nf = float(transformer.nominal_freq or 60)
         ri = float(transformer.rated_current or 68)
+
+        # Auto-fill phone_number from SIM modem if the device reports it.
+        sim_phone = (request.headers.get("X-Sim-Phone") or "").strip()
+        if sim_phone and sim_phone != (transformer.phone_number or "").strip():
+            transformer.phone_number = sim_phone
+            transformer.save(update_fields=["phone_number"])
+
         return Response(
             {
                 "transformer_id": transformer.id,
@@ -265,6 +272,12 @@ class ReadingViewSet(viewsets.ModelViewSet):
             )
 
         reading = serializer.save()
+
+        # Update last_seen so the dashboard knows the device is alive.
+        Transformer.objects.filter(pk=reading.transformer_id).update(
+            last_seen=timezone.now()
+        )
+
         if reading.condition != "normal":
             Alert.objects.create(
                 transformer=reading.transformer,

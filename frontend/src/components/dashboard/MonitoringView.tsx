@@ -39,7 +39,7 @@ export function MonitoringView({
   error: string | null;
 }) {
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 md:space-y-8">
       {error ? (
         <div
           role="alert"
@@ -68,15 +68,18 @@ export function MonitoringView({
         </div>
       ) : null}
 
-      <section aria-label="Overview" className="space-y-4">
+      {/* Overview Section */}
+      <section aria-label="Overview" className="space-y-3 md:space-y-4">
         <div className="space-y-1">
-          <div className="text-sm font-semibold">Overview</div>
-          <div className="text-xs text-muted-foreground">
+          <div className="text-base md:text-lg font-semibold tracking-tight">
+            Overview
+          </div>
+          <div className="text-xs md:text-sm text-muted-foreground">
             Quick health checks to spot abnormal conditions immediately.
           </div>
         </div>
 
-        <div className="grid gap-4 @md:grid-cols-2 @3xl:grid-cols-3">
+        <div className="grid gap-4 md:gap-5 grid-cols-1 md:grid-cols-2 2xl:grid-cols-3">
           <SystemHealthCard
             reading={reading}
             transformer={selectedTransformer}
@@ -97,17 +100,17 @@ export function MonitoringView({
                 transformer={selectedTransformer}
               />
             ) : (
-              <Card className="border-border/80 shadow-none">
+              <Card className="border-border/80 shadow-none h-full">
                 <CardHeader className="pb-2">
                   <CardTitle className="text-base font-semibold">
                     Condition (24h)
                   </CardTitle>
                 </CardHeader>
-                <CardContent className="py-10 text-center">
+                <CardContent className="py-8 md:py-12 text-center">
                   <div className="text-sm font-medium text-muted-foreground">
                     Select a transformer
                   </div>
-                  <div className="mt-1 text-xs text-muted-foreground">
+                  <div className="mt-1 md:mt-2 text-xs text-muted-foreground">
                     Condition breakdown will appear once data is available.
                   </div>
                 </CardContent>
@@ -117,17 +120,23 @@ export function MonitoringView({
         </div>
       </section>
 
-      <section aria-label="Real-time monitoring" className="space-y-4">
+      {/* Real-time Monitoring Section */}
+      <section
+        aria-label="Real-time monitoring"
+        className="space-y-3 md:space-y-4"
+      >
         <div className="space-y-1">
-          <div className="text-sm font-semibold">Real-time monitoring</div>
-          <div className="text-xs text-muted-foreground">
+          <div className="text-base md:text-lg font-semibold tracking-tight">
+            Real-time monitoring
+          </div>
+          <div className="text-xs md:text-sm text-muted-foreground">
             Live meters update from the websocket feed. Critical metrics are
             color-highlighted.
           </div>
         </div>
 
-        <div className="grid gap-4 @md:grid-cols-2 @3xl:grid-cols-3">
-          <div className="@3xl:col-span-2">
+        <div className="grid gap-4 md:gap-5 grid-cols-1 xl:grid-cols-2">
+          <div className="xl:col-span-2 order-2 xl:order-1">
             <LiveMeters
               reading={reading}
               loading={loading}
@@ -135,7 +144,7 @@ export function MonitoringView({
               recentReadings={recentReadingsForSparkline}
             />
           </div>
-          <div className="@3xl:col-span-1">
+          <div className="xl:col-span-2 order-1 xl:order-2">
             <DeviceStatusTable
               transformers={transformers}
               selectedId={selectedId}
@@ -148,21 +157,29 @@ export function MonitoringView({
         </div>
       </section>
 
-      <section aria-label="Historical trends" className="space-y-4">
+      {/* Historical Trends Section */}
+      <section
+        aria-label="Historical trends"
+        className="space-y-3 md:space-y-4"
+      >
         <div className="space-y-1">
-          <div className="text-sm font-semibold">Historical trends</div>
-          <div className="text-xs text-muted-foreground">
+          <div className="text-base md:text-lg font-semibold tracking-tight">
+            Historical trends
+          </div>
+          <div className="text-xs md:text-sm text-muted-foreground">
             View voltage/current trends, load patterns, and condition
             distribution over time.
           </div>
         </div>
 
-        <div className="grid gap-4 @md:grid-cols-2">
+        <div className="space-y-4 md:space-y-5">
           <ReadingsChart transformerId={selectedId} />
           <LoadByHourChart transformerId={selectedId} />
         </div>
 
-        <LoadHeatmap transformerId={selectedId} />
+        <div className="pt-1 md:pt-2">
+          <LoadHeatmap transformerId={selectedId} />
+        </div>
       </section>
     </div>
   );
