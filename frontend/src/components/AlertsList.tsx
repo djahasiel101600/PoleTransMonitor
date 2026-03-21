@@ -35,19 +35,23 @@ export function AlertsList({
   const handleAcknowledge = useCallback(
     async (id: number) => {
       setAlerts((a) =>
-        a.map((alert) => (alert.id === id ? { ...alert, acknowledged: true } : alert))
+        a.map((alert) =>
+          alert.id === id ? { ...alert, acknowledged: true } : alert,
+        ),
       );
       try {
         await acknowledgeAlert(id);
         setActionError(null);
       } catch {
         setAlerts((a) =>
-          a.map((alert) => (alert.id === id ? { ...alert, acknowledged: false } : alert))
+          a.map((alert) =>
+            alert.id === id ? { ...alert, acknowledged: false } : alert,
+          ),
         );
         setActionError("Failed to acknowledge alert. Please try again.");
       }
     },
-    [setAlerts]
+    [setAlerts],
   );
 
   const handleAcknowledgeAll = useCallback(async () => {
@@ -62,8 +66,10 @@ export function AlertsList({
     } catch {
       setAlerts((a) =>
         a.map((alert) =>
-          toRevert.includes(alert.id) ? { ...alert, acknowledged: false } : alert
-        )
+          toRevert.includes(alert.id)
+            ? { ...alert, acknowledged: false }
+            : alert,
+        ),
       );
       setActionError("Failed to acknowledge all alerts. Please try again.");
     } finally {
@@ -82,7 +88,8 @@ export function AlertsList({
   const deferredDensity = useDeferredValue(density);
 
   const deferredFilteredAlerts = useMemo(() => {
-    if (deferredFilter === "unacknowledged") return sortedAlerts.filter((a) => !a.acknowledged);
+    if (deferredFilter === "unacknowledged")
+      return sortedAlerts.filter((a) => !a.acknowledged);
     return sortedAlerts;
   }, [sortedAlerts, deferredFilter]);
 
@@ -98,19 +105,23 @@ export function AlertsList({
 
   const displayedAlerts = useMemo(
     () => deferredFilteredAlerts.slice(0, displayCount),
-    [deferredFilteredAlerts, displayCount]
+    [deferredFilteredAlerts, displayCount],
   );
 
   const hasMore = displayedAlerts.length < deferredFilteredAlerts.length;
   const unacknowledgedCount = alerts.filter((a) => !a.acknowledged).length;
   const acknowledgedCount = alerts.filter((a) => a.acknowledged).length;
 
-  const criticalCount = alerts.filter(
-    (a) => ["critical", "danger_zone", "severe_overload", "abnormal"].includes(a.condition)
+  const criticalCount = alerts.filter((a) =>
+    ["critical", "danger_zone", "severe_overload", "abnormal"].includes(
+      a.condition,
+    ),
   ).length;
 
   const handleLoadMore = useCallback(() => {
-    setDisplayCount((c) => Math.min(c + LOAD_MORE_STEP, deferredFilteredAlerts.length));
+    setDisplayCount((c) =>
+      Math.min(c + LOAD_MORE_STEP, deferredFilteredAlerts.length),
+    );
   }, [deferredFilteredAlerts.length]);
 
   const handleShowAll = useCallback(() => {
@@ -140,7 +151,10 @@ export function AlertsList({
         <CardContent>
           <div className="space-y-2">
             {[...Array(3)].map((_, i) => (
-              <Skeleton key={`alert-skeleton-${i}`} className="h-14 w-full rounded-lg" />
+              <Skeleton
+                key={`alert-skeleton-${i}`}
+                className="h-14 w-full rounded-lg"
+              />
             ))}
           </div>
         </CardContent>
@@ -230,7 +244,9 @@ export function AlertsList({
                   disabled={ackAllLoading}
                   className="text-xs"
                 >
-                  {ackAllLoading ? "Acknowledging…" : `Acknowledge all (${unacknowledgedCount})`}
+                  {ackAllLoading
+                    ? "Acknowledging…"
+                    : `Acknowledge all (${unacknowledgedCount})`}
                 </Button>
               )}
             </div>
@@ -289,7 +305,9 @@ export function AlertsList({
                 />
               </svg>
             </div>
-            <p className="text-sm font-medium text-foreground">No unacknowledged alerts</p>
+            <p className="text-sm font-medium text-foreground">
+              No unacknowledged alerts
+            </p>
             <p className="mt-1 text-xs text-muted-foreground">
               All {acknowledgedCount} alerts have been acknowledged
             </p>
@@ -297,70 +315,90 @@ export function AlertsList({
         ) : (
           <>
             <div className="max-h-[min(50vh,600px)] min-h-0 space-y-2 overflow-y-auto pr-1">
-              {groupedByCondition.length >= GROUP_THRESHOLD ? (
-                groupedByCondition.map(([condition, groupAlerts]) => {
-                  const isExpanded = expandedGroups.has(condition) || groupAlerts.length <= 5;
-                  const toShow = isExpanded ? groupAlerts : groupAlerts.slice(0, 2);
-                  const hidden = groupAlerts.length - toShow.length;
+              {groupedByCondition.length >= GROUP_THRESHOLD
+                ? groupedByCondition.map(([condition, groupAlerts]) => {
+                    const isExpanded =
+                      expandedGroups.has(condition) || groupAlerts.length <= 5;
+                    const toShow = isExpanded
+                      ? groupAlerts
+                      : groupAlerts.slice(0, 2);
+                    const hidden = groupAlerts.length - toShow.length;
 
-                  return (
-                    <div
-                      key={condition}
-                      className="rounded-lg border border-border/80 bg-muted/30"
-                    >
-                      <button
-                        type="button"
-                        onClick={() => groupAlerts.length > 5 && toggleGroup(condition)}
-                        className="flex w-full items-center justify-between px-3 py-2 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                    return (
+                      <div
+                        key={condition}
+                        className="rounded-lg border border-border/80 bg-muted/30"
                       >
-                        <div className="flex items-center gap-2">
-                          <ConditionBadge condition={condition as Condition} />
-                          <span className="text-xs text-muted-foreground">
-                            {groupAlerts.length} alert{groupAlerts.length !== 1 ? "s" : ""}
-                          </span>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            groupAlerts.length > 5 && toggleGroup(condition)
+                          }
+                          className="flex w-full items-center justify-between px-3 py-2 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                        >
+                          <div className="flex items-center gap-2">
+                            <ConditionBadge
+                              condition={condition as Condition}
+                            />
+                            <span className="text-xs text-muted-foreground">
+                              {groupAlerts.length} alert
+                              {groupAlerts.length !== 1 ? "s" : ""}
+                            </span>
+                          </div>
+                          {groupAlerts.length > 5 && (
+                            <span className="text-xs text-muted-foreground">
+                              {isExpanded
+                                ? "▾ Collapse"
+                                : `▸ Show ${hidden} more`}
+                            </span>
+                          )}
+                        </button>
+                        <div className="space-y-1 px-3 pb-2">
+                          {toShow.map((alert) => (
+                            <AlertCard
+                              key={alert.id}
+                              alert={alert}
+                              compact={deferredDensity === "compact"}
+                              onAcknowledge={handleAcknowledge}
+                            />
+                          ))}
                         </div>
-                        {groupAlerts.length > 5 && (
-                          <span className="text-xs text-muted-foreground">
-                            {isExpanded ? "▼ Collapse" : `▲ Show ${hidden} more`}
-                          </span>
-                        )}
-                      </button>
-                      <div className="space-y-1 px-3 pb-2">
-                        {toShow.map((alert) => (
-                          <AlertCard
-                            key={alert.id}
-                            alert={alert}
-                            compact={deferredDensity === "compact"}
-                            onAcknowledge={handleAcknowledge}
-                          />
-                        ))}
                       </div>
-                    </div>
-                  );
-                })
-              ) : (
-                displayedAlerts.map((alert) => (
-                  <AlertCard
-                    key={alert.id}
-                    alert={alert}
-                    compact={deferredDensity === "compact"}
-                    onAcknowledge={handleAcknowledge}
-                  />
-                ))
-              )}
+                    );
+                  })
+                : displayedAlerts.map((alert) => (
+                    <AlertCard
+                      key={alert.id}
+                      alert={alert}
+                      compact={deferredDensity === "compact"}
+                      onAcknowledge={handleAcknowledge}
+                    />
+                  ))}
             </div>
 
             {groupedByCondition.length < GROUP_THRESHOLD && hasMore && (
               <div className="mt-3 flex flex-shrink-0 flex-wrap items-center justify-between gap-2 border-t border-border pt-3">
                 <p className="text-xs text-muted-foreground">
-                  Showing {displayedAlerts.length} of {deferredFilteredAlerts.length} alerts
+                  Showing {displayedAlerts.length} of{" "}
+                  {deferredFilteredAlerts.length} alerts
                 </p>
                 <div className="flex gap-2">
-                  <Button variant="outline" size="sm" onClick={handleLoadMore} className="text-xs">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleLoadMore}
+                    className="text-xs"
+                  >
                     Load more
                   </Button>
-                  {deferredFilteredAlerts.length - displayCount > LOAD_MORE_STEP && (
-                    <Button variant="outline" size="sm" onClick={handleShowAll} className="text-xs">
+                  {deferredFilteredAlerts.length - displayCount >
+                    LOAD_MORE_STEP && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleShowAll}
+                      className="text-xs"
+                    >
                       Show all
                     </Button>
                   )}
@@ -368,11 +406,13 @@ export function AlertsList({
               </div>
             )}
 
-            {groupedByCondition.length < GROUP_THRESHOLD && !hasMore && deferredFilteredAlerts.length > INITIAL_DISPLAY && (
-              <p className="mt-2 text-center text-xs text-muted-foreground">
-                Showing all {deferredFilteredAlerts.length} alerts
-              </p>
-            )}
+            {groupedByCondition.length < GROUP_THRESHOLD &&
+              !hasMore &&
+              deferredFilteredAlerts.length > INITIAL_DISPLAY && (
+                <p className="mt-2 text-center text-xs text-muted-foreground">
+                  Showing all {deferredFilteredAlerts.length} alerts
+                </p>
+              )}
           </>
         )}
       </CardContent>
@@ -406,17 +446,26 @@ const AlertCard = memo(function AlertCard({
           <div className="flex flex-wrap items-center gap-1.5">
             <ConditionBadge condition={alert.condition} />
             {alert.acknowledged && (
-              <span className="text-xs text-muted-foreground">Acknowledged</span>
+              <span className="text-xs text-muted-foreground">
+                Acknowledged
+              </span>
             )}
             {alert.sms_sent && (
-              <span className="text-xs text-muted-foreground">SMS</span>
+              <span
+                className="text-xs text-muted-foreground"
+                title="SMS notification sent to recipients"
+              >
+                SMS sent
+              </span>
             )}
             <span className="text-xs text-muted-foreground">
               {formatRelativeTime(alert.timestamp)}
             </span>
           </div>
           {!compact && (
-            <p className="text-sm text-foreground line-clamp-2">{alert.message}</p>
+            <p className="text-sm text-foreground line-clamp-2">
+              {alert.message}
+            </p>
           )}
         </div>
         {!alert.acknowledged && (

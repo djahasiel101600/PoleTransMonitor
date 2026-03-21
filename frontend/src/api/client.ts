@@ -200,6 +200,17 @@ export async function deleteTransformer(transformerId: number) {
   return true;
 }
 
+export async function resetTransformer(transformerId: number) {
+  const res = await authFetch(`${API_BASE}/transformers/${transformerId}/reset/`, {
+    method: "POST",
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(text || "Failed to reset transformer");
+  }
+  return res.json() as Promise<{ ok: boolean; energy_kwh_offset: number }>;
+}
+
 export interface CreateContactPayload {
   owner_name: string;
   phone_number: string;

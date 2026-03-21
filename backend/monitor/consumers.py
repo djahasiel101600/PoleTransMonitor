@@ -5,6 +5,25 @@ from channels.generic.websocket import AsyncJsonWebsocketConsumer
 
 
 def broadcast_reading(reading):
+    # Dashboard "reset" is implemented as a backend energy baseline offset.
+    # The physical meter keeps accumulating kWh, so we subtract the offset here
+    # to keep websocket live meters consistent with REST API responses.
+    raw_energy = getattr(reading, "energy_kwh", None)
+    offset = 0.0
+    try:
+        offset = getattr(reading.transformer, "energy_kwh_offset", 0.0) or 0.0
+    except Exception:
+        offset = 0.0
+
+    adjusted_energy = None
+    if raw_energy is not None:
+        try:
+            adjusted_energy = float(raw_energy) - float(offset)
+            if adjusted_energy < 0:
+                adjusted_energy = 0.0
+        except (TypeError, ValueError):
+            adjusted_energy = None
+
     channel_layer = get_channel_layer()
     group_name = f"monitor_{reading.transformer_id}"
     payload = {
@@ -20,7 +39,7 @@ def broadcast_reading(reading):
             "power_factor": reading.power_factor,
             "frequency": reading.frequency,
             "oil_temp": reading.oil_temp,
-            "energy_kwh": reading.energy_kwh,
+            "energy_kwh": adjusted_energy,
             "condition": reading.condition,
         },
     }

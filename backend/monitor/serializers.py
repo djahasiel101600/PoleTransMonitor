@@ -100,6 +100,11 @@ class SmsRecipientSerializer(serializers.ModelSerializer):
 
 
 class ReadingSerializer(serializers.ModelSerializer):
+    # Dashboard "energy reset" is implemented as an offset in the backend.
+    # The physical meter keeps its own cumulative kWh, so we return an adjusted
+    # value to the dashboard: max(raw_energy_kwh - energy_kwh_offset, 0).
+    energy_kwh = serializers.SerializerMethodField()
+
     class Meta:
         model = Reading
         fields = [
@@ -116,6 +121,28 @@ class ReadingSerializer(serializers.ModelSerializer):
             "energy_kwh",
             "condition",
         ]
+
+    def get_energy_kwh(self, obj):
+        raw = obj.energy_kwh
+        if raw is None:
+            return None
+
+        offset = 0.0
+        try:
+            offset = getattr(obj.transformer, "energy_kwh_offset", 0.0) or 0.0
+        except Exception:
+            offset = 0.0
+
+        try:
+            adjusted = float(raw) - float(offset)
+        except (TypeError, ValueError):
+            return None
+
+        if adjusted < 0:
+            adjusted = 0.0
+
+        # Keep payload stable and small for websocket/API clients.
+        return round(adjusted, 6)
 
 
 class ReadingCreateSerializer(serializers.ModelSerializer):

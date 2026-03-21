@@ -14,7 +14,10 @@ export const LoadingGauge = memo(function LoadingGauge({
 }) {
   if (value == null || Number.isNaN(value)) {
     return (
-      <div className="flex flex-col items-center justify-center" style={{ width: size, height: size / 2 + 24 }}>
+      <div
+        className="flex flex-col items-center justify-center"
+        style={{ width: size, height: size / 2 + 24 }}
+      >
         <svg viewBox="0 0 120 84" className="w-full max-w-[120px]" aria-hidden>
           <path
             d="M 12 72 A 48 48 0 0 1 108 72"
@@ -24,8 +27,12 @@ export const LoadingGauge = memo(function LoadingGauge({
             className="text-muted"
           />
         </svg>
-        <span className="mt-1 text-lg font-semibold tabular-nums text-muted-foreground">--</span>
-        <span className="text-[10px] uppercase tracking-wider text-muted-foreground">{label}</span>
+        <span className="mt-1 text-lg font-semibold tabular-nums text-muted-foreground">
+          --
+        </span>
+        <span className="text-[10px] uppercase tracking-wider text-muted-foreground">
+          {label}
+        </span>
       </div>
     );
   }
@@ -35,9 +42,9 @@ export const LoadingGauge = memo(function LoadingGauge({
     value <= 100 ? "normal" : value <= 125 ? "warning" : "critical";
   const strokeColor =
     status === "critical"
-      ? "rgb(239 68 68)"
+      ? "var(--color-critical)"
       : status === "warning"
-        ? "rgb(245 158 11)"
+        ? "var(--color-warning)"
         : "var(--color-primary)";
 
   const r = 48;
@@ -89,7 +96,7 @@ export const LoadingGauge = memo(function LoadingGauge({
       >
         {value > 99.9 ? value.toFixed(0) : value.toFixed(1)}%
       </span>
-      <span className="text-[10px] uppercase tracking-wider text-muted-foreground">
+      <span className="text-xs uppercase tracking-wider text-muted-foreground">
         {label}
       </span>
     </div>

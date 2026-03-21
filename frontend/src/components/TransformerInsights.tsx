@@ -6,16 +6,17 @@ import type { TransformerInsightsResponse } from "../api/client";
 
 function computeLoadingPercent(
   apparentPower: number | null,
-  ratedKva: number
+  ratedKva: number,
 ): number | null {
-  if (apparentPower == null || Number.isNaN(apparentPower) || !ratedKva) return null;
+  if (apparentPower == null || Number.isNaN(apparentPower) || !ratedKva)
+    return null;
   const ratedVa = ratedKva * 1000;
   return (apparentPower / ratedVa) * 100;
 }
 
 function computeVoltageStatus(
   voltage: number | null,
-  nominalVoltage: number
+  nominalVoltage: number,
 ): "normal" | "low" | "high" | null {
   if (voltage == null || Number.isNaN(voltage)) return null;
   const low = nominalVoltage * 0.93;
@@ -26,13 +27,16 @@ function computeVoltageStatus(
 
 function computeCapacityRemainingKva(
   apparentPower: number | null,
-  ratedKva: number
+  ratedKva: number,
 ): number | null {
-  if (apparentPower == null || Number.isNaN(apparentPower) || !ratedKva) return null;
+  if (apparentPower == null || Number.isNaN(apparentPower) || !ratedKva)
+    return null;
   return (ratedKva * 1000 - apparentPower) / 1000;
 }
 
-function computePowerFactorStatus(pf: number | null): "good" | "fair" | "poor" | null {
+function computePowerFactorStatus(
+  pf: number | null,
+): "good" | "fair" | "poor" | null {
   if (pf == null || Number.isNaN(pf)) return null;
   if (pf >= 0.85) return "good";
   if (pf >= 0.7) return "fair";
@@ -96,7 +100,9 @@ export function TransformerInsights({
     return (
       <Card className="border-border/80 shadow-none">
         <CardContent className="py-8 text-center">
-          <p className="text-sm text-muted-foreground">Select a transformer and wait for readings</p>
+          <p className="text-sm text-muted-foreground">
+            Select a transformer and wait for readings
+          </p>
         </CardContent>
       </Card>
     );
@@ -105,7 +111,9 @@ export function TransformerInsights({
   return (
     <Card className="border-border/80 shadow-none">
       <CardHeader className="pb-2">
-        <CardTitle className="text-base font-semibold">Status at a glance</CardTitle>
+        <CardTitle className="text-base font-semibold">
+          Status at a glance
+        </CardTitle>
         <p className="text-xs text-muted-foreground">
           Loading, voltage and capacity for quick assessment
         </p>
@@ -114,77 +122,79 @@ export function TransformerInsights({
         {hasAny && (
           <>
             {/* Loading gauge + status pills row */}
-            <div className="flex flex-wrap items-start gap-6">
+            <div className="flex flex-col items-center gap-6 lg:flex-row lg:items-start">
               {loadingPercent != null && (
-                <LoadingGauge
-                  value={loadingPercent}
-                  max={125}
-                  label={`of ${ratedKva} kVA`}
-                />
+                <div className="lg:flex-shrink-0">
+                  <LoadingGauge
+                    value={loadingPercent}
+                    max={125}
+                    label={`of ${ratedKva} kVA`}
+                  />
+                </div>
               )}
-              <div className="grid flex-1 grid-cols-2 gap-2 sm:grid-cols-3">
-              {voltageStatus != null && (
-                <div className="rounded-md border border-border/80 bg-muted/30 px-3 py-2">
-                  <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
-                    Voltage
-                  </p>
-                  <p
-                    className={`mt-0.5 text-sm font-semibold ${
-                      voltageStatus === "normal"
-                        ? "text-foreground"
+              <div className="flex w-full flex-1 flex-wrap gap-2 lg:max-w-none">
+                {voltageStatus != null && (
+                  <div className="flex-1 basis-24 rounded-md border border-border/80 bg-muted/30 px-3 py-2">
+                    <p className="text-xs uppercase text-muted-foreground">
+                      Voltage
+                    </p>
+                    <p
+                      className={`mt-0.5 text-sm font-semibold ${
+                        voltageStatus === "normal"
+                          ? "text-foreground"
+                          : voltageStatus === "low"
+                            ? "text-amber-600 dark:text-amber-400"
+                            : "text-red-600 dark:text-red-400"
+                      }`}
+                    >
+                      {voltageStatus === "normal"
+                        ? "Normal"
                         : voltageStatus === "low"
-                          ? "text-amber-600 dark:text-amber-400"
+                          ? "Low"
+                          : "High"}
+                    </p>
+                  </div>
+                )}
+                {capacityRemainingKva != null && (
+                  <div className="flex-1 basis-24 rounded-md border border-border/80 bg-muted/30 px-3 py-2">
+                    <p className="text-xs uppercase text-muted-foreground">
+                      Headroom
+                    </p>
+                    <p
+                      className={`mt-0.5 text-sm font-semibold tabular-nums ${
+                        capacityRemainingKva >= 0
+                          ? "text-foreground"
                           : "text-red-600 dark:text-red-400"
-                    }`}
-                  >
-                    {voltageStatus === "normal"
-                      ? "Normal"
-                      : voltageStatus === "low"
-                        ? "Low"
-                        : "High"}
-                  </p>
-                </div>
-              )}
-              {capacityRemainingKva != null && (
-                <div className="rounded-md border border-border/80 bg-muted/30 px-3 py-2">
-                  <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
-                    Headroom
-                  </p>
-                  <p
-                    className={`mt-0.5 text-sm font-semibold tabular-nums ${
-                      capacityRemainingKva >= 0
-                        ? "text-foreground"
-                        : "text-red-600 dark:text-red-400"
-                    }`}
-                  >
-                    {capacityRemainingKva >= 0
-                      ? `${capacityRemainingKva.toFixed(1)} kVA`
-                      : "Overload"}
-                  </p>
-                </div>
-              )}
-              {pfStatus != null && (
-                <div className="rounded-md border border-border/80 bg-muted/30 px-3 py-2">
-                  <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
-                    Power factor
-                  </p>
-                  <p
-                    className={`mt-0.5 text-sm font-semibold ${
-                      pfStatus === "good"
-                        ? "text-foreground"
+                      }`}
+                    >
+                      {capacityRemainingKva >= 0
+                        ? `${capacityRemainingKva.toFixed(1)} kVA`
+                        : "Overload"}
+                    </p>
+                  </div>
+                )}
+                {pfStatus != null && (
+                  <div className="flex-1 basis-24 rounded-md border border-border/80 bg-muted/30 px-3 py-2">
+                    <p className="whitespace-nowrap text-xs uppercase text-muted-foreground">
+                      Power factor
+                    </p>
+                    <p
+                      className={`mt-0.5 text-sm font-semibold ${
+                        pfStatus === "good"
+                          ? "text-foreground"
+                          : pfStatus === "fair"
+                            ? "text-amber-600 dark:text-amber-400"
+                            : "text-red-600 dark:text-red-400"
+                      }`}
+                    >
+                      {pfStatus === "good"
+                        ? "Good"
                         : pfStatus === "fair"
-                          ? "text-amber-600 dark:text-amber-400"
-                          : "text-red-600 dark:text-red-400"
-                    }`}
-                  >
-                    {pfStatus === "good"
-                      ? "Good"
-                      : pfStatus === "fair"
-                        ? "Fair"
-                        : "Poor"}
-                  </p>
-                </div>
-              )}
+                          ? "Fair"
+                          : "Poor"}
+                    </p>
+                  </div>
+                )}
               </div>
             </div>
 

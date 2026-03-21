@@ -39,9 +39,18 @@ export function TopBar({
             size="sm"
             onClick={onOpenMobileNav}
             className="lg:hidden"
-            aria-label="Open navigation"
+            aria-label="Open main navigation menu"
           >
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="h-5 w-5"
+            >
               <path d="M4 6h16" />
               <path d="M4 12h16" />
               <path d="M4 18h16" />
@@ -49,9 +58,12 @@ export function TopBar({
           </Button>
 
           <div className="min-w-0">
-            <h1 className="truncate text-base font-semibold tracking-tight text-foreground">Energy Monitoring Dashboard</h1>
+            <h1 className="truncate text-base font-semibold tracking-tight text-foreground">
+              Energy Monitoring Dashboard
+            </h1>
             <div className="mt-0.5 text-xs text-muted-foreground">
-              {connected ? "Live feed active" : "No live feed"}{selectedTransformer ? ` · ${selectedTransformer.name}` : ""}
+              {connected ? "Live feed active" : "No live feed"}
+              {selectedTransformer ? ` · ${selectedTransformer.name}` : ""}
             </div>
           </div>
         </div>
@@ -63,10 +75,11 @@ export function TopBar({
             </label>
             <select
               id="transformer-select"
-              aria-label="Select transformer"
               value={selectedId ?? ""}
-              onChange={(e) => onSelectTransformer(Number(e.target.value) || null)}
-              className="rounded-md border border-border bg-transparent px-3 py-1.5 text-sm text-foreground outline-none focus:ring-2 focus:ring-primary/20 focus:ring-offset-0"
+              onChange={(e) =>
+                onSelectTransformer(Number(e.target.value) || null)
+              }
+              className="rounded-md border border-border bg-transparent px-3 py-1.5 text-sm text-foreground outline-none focus:ring-2 focus:ring-primary/30 focus:ring-offset-2"
             >
               <option value="">Select…</option>
               {transformers.map((t) => (
@@ -80,7 +93,9 @@ export function TopBar({
             {selectedTransformer ? (
               <span className="hidden whitespace-nowrap text-sm text-muted-foreground sm:inline">
                 {selectedTransformer.rated_kva} kVA
-                {selectedTransformer.nominal_voltage ? ` @ ${selectedTransformer.nominal_voltage}V` : ""}
+                {selectedTransformer.nominal_voltage
+                  ? ` @ ${selectedTransformer.nominal_voltage}V`
+                  : ""}
               </span>
             ) : null}
           </div>
@@ -105,16 +120,36 @@ export function TopBar({
             type="button"
             variant="outline"
             onClick={onToggleTheme}
-            aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+            aria-label={
+              theme === "dark" ? "Switch to light mode" : "Switch to dark mode"
+            }
             className="h-9 w-9 p-0"
           >
             {theme === "dark" ? (
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.6"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="h-5 w-5"
+              >
                 <path d="M12 3v2.25m6.364.386l-1.591 1.591M21 12h-2.25m-.386 6.364l-1.591-1.591M12 18.75V21m-4.773-4.227l-1.591 1.591M5.25 12H3m4.227-4.773L5.636 5.636" />
                 <path d="M15.75 12a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0z" />
               </svg>
             ) : (
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.6"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="h-5 w-5"
+              >
                 <path d="M21.752 15.002A9.718 9.718 0 0118 15.75c-5.385 0-9.75-4.365-9.75-9.75 0-1.33.266-2.597.748-3.752A9.753 9.753 0 003 11.25C3 16.635 7.365 21 12.75 21a9.753 9.753 0 009.002-5.998z" />
               </svg>
             )}
@@ -123,7 +158,9 @@ export function TopBar({
           <div className="flex items-center gap-3 text-sm text-muted-foreground">
             <span
               className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium ${
-                connected ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"
+                connected
+                  ? "bg-primary/10 text-primary"
+                  : "bg-muted text-muted-foreground"
               }`}
             >
               <span
@@ -133,7 +170,12 @@ export function TopBar({
               {connected ? "Live" : "Offline"}
             </span>
 
-            <Button type="button" variant="outline" onClick={onLogout} className="h-9">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={onLogout}
+              className="h-9"
+            >
               Logout
             </Button>
           </div>
@@ -142,4 +184,3 @@ export function TopBar({
     </header>
   );
 }
-

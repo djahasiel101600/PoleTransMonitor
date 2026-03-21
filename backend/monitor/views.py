@@ -12,6 +12,7 @@ from django_filters.rest_framework import DjangoFilterBackend
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from django.db.models import Max, Min
+from django.db import transaction
 from datetime import timedelta
 
 from .models import Transformer, Reading, Alert, SmsRecipient
@@ -82,7 +83,7 @@ class TransformerViewSet(viewsets.ModelViewSet):
         # The ESP32 device posts readings; we only want admins/staff to manage transformers.
         if self.action == "device_config":
             return [AllowAny()]
-        if self.action in ["create", "update", "partial_update", "destroy"]:
+        if self.action in ["create", "update", "partial_update", "destroy", "reset"]:
             return [IsAuthenticated(), IsAdminUser()]
         return [IsAuthenticated()]
 
@@ -180,6 +181,45 @@ class TransformerViewSet(viewsets.ModelViewSet):
             "peak_load_24h_kva": peak_load_kva,
             "energy_24h_kwh": energy_24h_kwh,
         })
+
+    @action(detail=True, methods=["post"], url_path="reset")
+    def reset(self, request, pk=None):
+        """
+        Backend-only “transformer reset”.
+
+        Sets an energy baseline offset and clears stored readings/alerts for this transformer.
+        This helps when a transformer/PZEM module is replaced but the device itself isn't
+        remotely reset by this dashboard.
+        """
+        transformer = self.get_object()
+
+        with transaction.atomic():
+            latest = (
+                Reading.objects.filter(transformer=transformer)
+                .order_by("-timestamp")
+                .first()
+            )
+            raw_baseline = (latest.energy_kwh if latest else None) or 0.0
+
+            # Ensure we persist a numeric value.
+            try:
+                offset = float(raw_baseline)
+            except (TypeError, ValueError):
+                offset = 0.0
+
+            transformer.energy_kwh_offset = offset
+            transformer.save(update_fields=["energy_kwh_offset"])
+
+            # Clear history so charts/alerts restart cleanly.
+            Alert.objects.filter(transformer=transformer).delete()
+            Reading.objects.filter(transformer=transformer).delete()
+
+        return Response(
+            {
+                "ok": True,
+                "energy_kwh_offset": offset,
+            }
+        )
 
 
 class SmsRecipientViewSet(viewsets.ModelViewSet):

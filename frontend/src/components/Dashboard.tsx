@@ -16,6 +16,7 @@ import { LoginDialog } from "./LoginDialog";
 import { AddTransformerDialog } from "./AddTransformerDialog";
 import { EditTransformerDialog } from "./EditTransformerDialog";
 import { DeleteTransformerDialog } from "./DeleteTransformerDialog";
+import { ResetTransformerDialog } from "./ResetTransformerDialog";
 import { TransformerManagementList } from "./TransformerManagementList";
 import { ContactsScreen } from "./ContactsScreen";
 import { Sidebar, type NavKey } from "./layout/Sidebar";
@@ -60,6 +61,9 @@ export function Dashboard() {
 
   const [deleteTransformer, setDeleteTransformer] = useState<Transformer | null>(null);
   const [showDeleteTransformer, setShowDeleteTransformer] = useState(false);
+
+  const [resetTargetTransformer, setResetTargetTransformer] = useState<Transformer | null>(null);
+  const [showResetTransformer, setShowResetTransformer] = useState(false);
 
   const [activeTab, setActiveTab] = useState<NavKey>("monitoring");
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
@@ -276,6 +280,10 @@ export function Dashboard() {
                           setDeleteTransformer(t);
                           setShowDeleteTransformer(true);
                         }}
+                        onReset={(t) => {
+                          setResetTargetTransformer(t);
+                          setShowResetTransformer(true);
+                        }}
                       />
                     </div>
                   </CardContent>
@@ -375,6 +383,36 @@ export function Dashboard() {
           transformer={deleteTransformer}
           onDeleted={() => {
             void refreshTransformers();
+          }}
+        />
+      )}
+
+      {isAdmin && (
+        <ResetTransformerDialog
+          open={showResetTransformer}
+          transformer={resetTargetTransformer}
+          onClose={() => {
+            setShowResetTransformer(false);
+            setResetTargetTransformer(null);
+          }}
+          onResetDone={(transformerId) => {
+            const wasSelected = selectedId === transformerId;
+            void (async () => {
+              // Keep transformer list fresh (and ensure the selectedId still exists).
+              await refreshTransformers();
+
+              if (!wasSelected) return;
+
+              // Force websocket re-subscription + re-fetch by toggling selectedId.
+              setLatestReading(null);
+              setAlerts([]);
+              setInsights24h(null);
+              setRecentReadingsForSparkline([]);
+              setError(null);
+
+              setSelectedId(null);
+              requestAnimationFrame(() => setSelectedId(transformerId));
+            })();
           }}
         />
       )}

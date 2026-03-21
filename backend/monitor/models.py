@@ -30,6 +30,10 @@ class Transformer(models.Model):
     rated_kva = models.FloatField(default=15)
     rated_current = models.FloatField(default=68)
     site = models.CharField(max_length=200, null=True, blank=True)
+    # Energy reset baseline used by the dashboard.
+    # When staff “reset” a transformer, the backend subtracts this offset from
+    # stored cumulative `energy_kwh` so the UI starts near 0 after replacement.
+    energy_kwh_offset = models.FloatField(default=0.0)
     phone_number = models.CharField(
         max_length=32,
         null=True,

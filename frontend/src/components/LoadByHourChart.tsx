@@ -1,5 +1,13 @@
 import { useEffect, useState, useMemo } from "react";
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+} from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/Card";
 import { Skeleton } from "./ui/Skeleton";
 import { fetchReadings } from "../api/client";
@@ -7,7 +15,10 @@ import type { Reading } from "../types";
 
 const CHART_MARGIN = { top: 8, right: 16, left: 0, bottom: 8 };
 
-function bucketByHour(readings: Reading[], hours: 24 | 168): { hour: string; loadKva: number; count: number }[] {
+function bucketByHour(
+  readings: Reading[],
+  hours: 24 | 168,
+): { hour: string; loadKva: number; count: number }[] {
   const buckets = Array.from({ length: hours }, (_, i) => ({
     hour: hours === 24 ? `${i}h` : `${i}h`,
     loadKva: 0,
@@ -99,19 +110,21 @@ export function LoadByHourChart({
   return (
     <Card className="border-border/80 shadow-none">
       <CardHeader className="flex flex-row items-center justify-between">
-        <CardTitle className="text-base font-semibold">Load by {period === "24h" ? "hour" : "day"}</CardTitle>
+        <CardTitle className="text-base font-semibold">
+          Load by {period === "24h" ? "hour" : "day"}
+        </CardTitle>
         <div className="flex gap-0.5 rounded-md border border-border/80 p-0.5">
           <button
             type="button"
             onClick={() => setPeriod("24h")}
-            className={`rounded px-2 py-1 text-xs transition-colors ${period === "24h" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted hover:text-foreground"}`}
+            className={`rounded px-2 py-1 text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${period === "24h" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted hover:text-foreground"}`}
           >
             24h
           </button>
           <button
             type="button"
             onClick={() => setPeriod("7d")}
-            className={`rounded px-2 py-1 text-xs transition-colors ${period === "7d" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted hover:text-foreground"}`}
+            className={`rounded px-2 py-1 text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${period === "7d" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted hover:text-foreground"}`}
           >
             7d
           </button>
@@ -126,7 +139,10 @@ export function LoadByHourChart({
           <div className="h-[clamp(12rem,28vh,16rem)]">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={data} margin={CHART_MARGIN}>
-                <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+                <CartesianGrid
+                  strokeDasharray="3 3"
+                  className="stroke-border"
+                />
                 <XAxis
                   dataKey={period === "24h" ? "hour" : "day"}
                   tick={{ fontSize: 10 }}
@@ -149,7 +165,9 @@ export function LoadByHourChart({
                     const v = typeof value === "number" ? value : 0;
                     return [`${v.toFixed(2)} kVA`, "Avg load"];
                   }}
-                  labelFormatter={(label) => (period === "24h" ? `Hour ${label}` : label)}
+                  labelFormatter={(label) =>
+                    period === "24h" ? `Hour ${label}` : label
+                  }
                 />
                 <Bar
                   dataKey="loadKva"
