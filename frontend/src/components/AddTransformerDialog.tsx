@@ -10,7 +10,10 @@ import {
 } from "./ui/Dialog";
 import { Input } from "./ui/Input";
 import { Label } from "./ui/Label";
-import { createTransformer, type CreateTransformerPayload } from "../api/client";
+import {
+  createTransformer,
+  type CreateTransformerPayload,
+} from "../api/client";
 import type { Transformer } from "../types";
 
 export function AddTransformerDialog({
@@ -25,7 +28,9 @@ export function AddTransformerDialog({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   /** After create, staff may need to copy device API key into the ESP32 portal */
-  const [createdWithKey, setCreatedWithKey] = useState<Transformer | null>(null);
+  const [createdWithKey, setCreatedWithKey] = useState<Transformer | null>(
+    null,
+  );
   const [copyHint, setCopyHint] = useState<string | null>(null);
 
   const [name, setName] = useState("");
@@ -103,7 +108,9 @@ export function AddTransformerDialog({
       onCreated(t);
       onClose();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to create transformer");
+      setError(
+        err instanceof Error ? err.message : "Failed to create transformer",
+      );
     } finally {
       setSubmitting(false);
     }
@@ -119,7 +126,7 @@ export function AddTransformerDialog({
       <DialogPortal>
         <DialogOverlay />
         <DialogContent>
-          <Card className="w-full max-w-lg rounded-lg px-4 pb-4 sm:px-0 sm:pb-0 max-h-[85vh] overflow-y-auto">
+          <Card className="w-full rounded-lg max-h-[85vh] overflow-y-auto">
             {createdWithKey?.device_api_key ? (
               <>
                 <CardHeader>
@@ -128,8 +135,9 @@ export function AddTransformerDialog({
                 <CardContent className="space-y-3">
                   <p className="text-sm text-muted-foreground">
                     Paste this key into the ESP32 WiFi portal field{" "}
-                    <strong>Device API key (Dashboard → staff)</strong> so the device loads the same nominal voltage,
-                    frequency, and ratings as the dashboard.
+                    <strong>Device API key (Dashboard → staff)</strong> so the
+                    device loads the same nominal voltage, frequency, and
+                    ratings as the dashboard.
                   </p>
                   <div className="flex items-start gap-2">
                     <div className="flex-1">
@@ -143,18 +151,27 @@ export function AddTransformerDialog({
                       />
                     </div>
                     <div className="pt-6">
-                      <Button type="button" variant="outline" onClick={() => void copyDeviceKey()}>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => void copyDeviceKey()}
+                      >
                         Copy
                       </Button>
                     </div>
                   </div>
                   {copyHint && (
-                    <p role="status" aria-live="polite" className="text-xs text-muted-foreground">
+                    <p
+                      role="status"
+                      aria-live="polite"
+                      className="text-xs text-muted-foreground"
+                    >
                       {copyHint}
                     </p>
                   )}
                   <p className="text-xs text-amber-700 dark:text-amber-400">
-                    Store this key securely. You can copy it again anytime from Edit transformer (staff).
+                    Store this key securely. You can copy it again anytime from
+                    Edit transformer (staff).
                   </p>
                   <div className="flex justify-end pt-2">
                     <Button type="button" onClick={finishAfterKey}>
@@ -181,7 +198,9 @@ export function AddTransformerDialog({
                     </div>
 
                     <div className="space-y-1">
-                      <Label htmlFor="add-transformer-serial">Serial (optional)</Label>
+                      <Label htmlFor="add-transformer-serial">
+                        Serial (optional)
+                      </Label>
                       <Input
                         id="add-transformer-serial"
                         value={serial}
@@ -190,7 +209,9 @@ export function AddTransformerDialog({
                     </div>
 
                     <div className="space-y-1">
-                      <Label htmlFor="add-transformer-phone">Phone number (optional)</Label>
+                      <Label htmlFor="add-transformer-phone">
+                        Phone number (optional)
+                      </Label>
                       <Input
                         id="add-transformer-phone"
                         type="tel"
@@ -199,32 +220,44 @@ export function AddTransformerDialog({
                         value={phoneNumber}
                         onChange={(e) => setPhoneNumber(e.target.value)}
                       />
-                      <p className="text-xs text-muted-foreground">SIM / modem MSISDN for SMS or device identification</p>
+                      <p className="text-xs text-muted-foreground">
+                        SIM / modem MSISDN for SMS or device identification
+                      </p>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <div className="space-y-1">
-                        <Label htmlFor="add-transformer-nominal-voltage">Nominal voltage</Label>
+                        <Label htmlFor="add-transformer-nominal-voltage">
+                          Nominal voltage
+                        </Label>
                         <Input
                           id="add-transformer-nominal-voltage"
                           type="number"
                           step="0.1"
                           value={nominalVoltage}
-                          onChange={(e) => setNominalVoltage(Number(e.target.value))}
+                          onChange={(e) =>
+                            setNominalVoltage(Number(e.target.value))
+                          }
                         />
                       </div>
                       <div className="space-y-1">
-                        <Label htmlFor="add-transformer-nominal-freq">Nominal freq</Label>
+                        <Label htmlFor="add-transformer-nominal-freq">
+                          Nominal freq
+                        </Label>
                         <Input
                           id="add-transformer-nominal-freq"
                           type="number"
                           step="0.1"
                           value={nominalFreq}
-                          onChange={(e) => setNominalFreq(Number(e.target.value))}
+                          onChange={(e) =>
+                            setNominalFreq(Number(e.target.value))
+                          }
                         />
                       </div>
                       <div className="space-y-1">
-                        <Label htmlFor="add-transformer-rated-kva">Rated kVA</Label>
+                        <Label htmlFor="add-transformer-rated-kva">
+                          Rated kVA
+                        </Label>
                         <Input
                           id="add-transformer-rated-kva"
                           type="number"
@@ -234,33 +267,55 @@ export function AddTransformerDialog({
                         />
                       </div>
                       <div className="space-y-1">
-                        <Label htmlFor="add-transformer-rated-current">Rated current</Label>
+                        <Label htmlFor="add-transformer-rated-current">
+                          Rated current
+                        </Label>
                         <Input
                           id="add-transformer-rated-current"
                           type="number"
                           step="0.1"
                           value={ratedCurrent}
-                          onChange={(e) => setRatedCurrent(Number(e.target.value))}
+                          onChange={(e) =>
+                            setRatedCurrent(Number(e.target.value))
+                          }
                         />
                       </div>
                     </div>
 
                     <div className="space-y-1">
-                      <Label htmlFor="add-transformer-site">Site (optional)</Label>
-                      <Input id="add-transformer-site" value={site} onChange={(e) => setSite(e.target.value)} />
+                      <Label htmlFor="add-transformer-site">
+                        Site (optional)
+                      </Label>
+                      <Input
+                        id="add-transformer-site"
+                        value={site}
+                        onChange={(e) => setSite(e.target.value)}
+                      />
                     </div>
 
                     {error && (
-                      <div role="alert" aria-live="polite" className="text-sm text-destructive">
+                      <div
+                        role="alert"
+                        aria-live="polite"
+                        className="text-sm text-destructive"
+                      >
                         {error}
                       </div>
                     )}
 
                     <div className="flex items-center justify-end gap-2 pt-2">
-                      <Button type="button" variant="outline" onClick={onClose} disabled={submitting}>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={onClose}
+                        disabled={submitting}
+                      >
                         Cancel
                       </Button>
-                      <Button type="submit" disabled={submitting || name.trim().length === 0}>
+                      <Button
+                        type="submit"
+                        disabled={submitting || name.trim().length === 0}
+                      >
                         {submitting ? "Creating..." : "Create"}
                       </Button>
                     </div>

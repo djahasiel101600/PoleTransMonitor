@@ -28,13 +28,20 @@ export function TransformerManagementList({
       const site = (t.site ?? "").toLowerCase();
       const phone = (t.phone_number ?? "").toLowerCase();
       return (
-        name.includes(q) || serial.includes(q) || site.includes(q) || phone.includes(q)
+        name.includes(q) ||
+        serial.includes(q) ||
+        site.includes(q) ||
+        phone.includes(q)
       );
     });
   }, [transformers, query]);
 
   if (filtered.length === 0) {
-    return <div className="text-sm text-muted-foreground">No transformers found.</div>;
+    return (
+      <div className="text-sm text-muted-foreground">
+        No transformers found.
+      </div>
+    );
   }
 
   return (
@@ -46,11 +53,11 @@ export function TransformerManagementList({
             key={t.id}
             className={`flex flex-col items-stretch justify-between gap-3 rounded-md border border-border/80 bg-card p-3 ${
               isSelected ? "ring-2 ring-primary/30" : ""
-            } sm:flex-row sm:items-start`}
+            } md:flex-row md:items-start`}
           >
             <button
               type="button"
-              className="text-left w-full sm:w-auto focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              className="text-left w-full md:w-auto focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
               onClick={() => onSelect(t.id)}
               aria-label={`Select transformer ${t.name}`}
             >
@@ -66,13 +73,13 @@ export function TransformerManagementList({
               </div>
             </button>
 
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
+            <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-end">
               <Button
                 type="button"
                 size="sm"
                 variant="outline"
                 onClick={() => onSelect(t.id)}
-                className="w-full sm:w-auto"
+                className="w-full md:w-auto"
               >
                 {isSelected ? "Active" : "Use"}
               </Button>
@@ -81,7 +88,7 @@ export function TransformerManagementList({
                 size="sm"
                 variant="outline"
                 onClick={() => onEdit(t)}
-                className="w-full sm:w-auto"
+                className="w-full md:w-auto"
               >
                 Edit
               </Button>
@@ -90,7 +97,7 @@ export function TransformerManagementList({
                 size="sm"
                 variant="outline"
                 onClick={() => onReset(t)}
-                className="w-full sm:w-auto border-amber-200 text-amber-800 hover:bg-amber-50 dark:border-amber-800 dark:text-amber-300"
+                className="w-full md:w-auto border-amber-200 text-amber-800 hover:bg-amber-50 dark:border-amber-800 dark:text-amber-300"
               >
                 Reset
               </Button>
@@ -99,7 +106,7 @@ export function TransformerManagementList({
                 size="sm"
                 variant="outline"
                 onClick={() => onDelete(t)}
-                className="border-destructive text-destructive hover:bg-destructive/10 w-full sm:w-auto"
+                className="border-destructive text-destructive hover:bg-destructive/10 w-full md:w-auto"
               >
                 Delete
               </Button>
@@ -110,4 +117,3 @@ export function TransformerManagementList({
     </div>
   );
 }
-

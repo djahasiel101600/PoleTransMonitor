@@ -5,9 +5,16 @@ import { LoadingGauge } from "../LoadingGauge";
 import { ConditionBadge } from "../ConditionBadge";
 import { Skeleton } from "../ui/Skeleton";
 import { formatRelativeTime } from "../../lib/utils";
-import { computeLoadingPercent, getAbnormalMeters, getConditionSeverity, type MeterStatus } from "../../lib/energyStatus";
+import {
+  computeLoadingPercent,
+  getAbnormalMeters,
+  getConditionSeverity,
+  type MeterStatus,
+} from "../../lib/energyStatus";
 
-function meterBadgeVariant(status: MeterStatus): "normal" | "warning" | "critical" {
+function meterBadgeVariant(
+  status: MeterStatus,
+): "normal" | "warning" | "critical" {
   if (status === "critical") return "critical";
   if (status === "warning") return "warning";
   return "normal";
@@ -49,12 +56,20 @@ export function SystemHealthCard({
     return (
       <Card className="border-border/80 shadow-none">
         <CardHeader>
-          <CardTitle className="text-base font-semibold">System health</CardTitle>
-          <p className="text-xs text-muted-foreground">Awaiting live readings</p>
+          <CardTitle className="text-base font-semibold">
+            System health
+          </CardTitle>
+          <p className="text-xs text-muted-foreground">
+            Awaiting live readings
+          </p>
         </CardHeader>
         <CardContent className="py-10 text-center">
-          <div className="text-sm font-medium text-muted-foreground">No data yet</div>
-          <div className="mt-1 text-xs text-muted-foreground">Select a transformer to start monitoring.</div>
+          <div className="text-sm font-medium text-muted-foreground">
+            No data yet
+          </div>
+          <div className="mt-1 text-xs text-muted-foreground">
+            Select a transformer to start monitoring.
+          </div>
         </CardContent>
       </Card>
     );
@@ -62,7 +77,10 @@ export function SystemHealthCard({
 
   const severity = getConditionSeverity(reading.condition);
   const abnormalMeters = getAbnormalMeters(reading, transformer);
-  const loadingPercent = computeLoadingPercent(reading.apparent_power, transformer?.rated_kva ?? 0);
+  const loadingPercent = computeLoadingPercent(
+    reading.apparent_power,
+    transformer?.rated_kva ?? 0,
+  );
 
   const border =
     severity === "critical"
@@ -71,7 +89,12 @@ export function SystemHealthCard({
         ? "border-amber-200 bg-amber-50/25 dark:border-amber-800/30 dark:bg-amber-950/15"
         : "border-border/80 bg-card";
 
-  const severityLabel = severity === "critical" ? "Critical" : severity === "warning" ? "Warning" : "Normal";
+  const severityLabel =
+    severity === "critical"
+      ? "Critical"
+      : severity === "warning"
+        ? "Warning"
+        : "Normal";
 
   const badgeVariant = meterBadgeVariant(severity);
 
@@ -80,16 +103,22 @@ export function SystemHealthCard({
       <CardHeader className="pb-2">
         <div className="flex items-start justify-between gap-3">
           <div className="space-y-1">
-            <CardTitle className="text-base font-semibold">System health</CardTitle>
+            <CardTitle className="text-base font-semibold">
+              System health
+            </CardTitle>
             <div className="flex flex-wrap items-center gap-2">
               <Badge variant={badgeVariant}>{severityLabel}</Badge>
               <ConditionBadge condition={reading.condition} />
-              <span className="text-xs text-muted-foreground">{connected ? "Live" : "Offline"}</span>
+              <span className="text-xs text-muted-foreground">
+                {connected ? "Live" : "Offline"}
+              </span>
             </div>
           </div>
           <div className="text-right">
             <div className="text-xs text-muted-foreground">Last update</div>
-            <div className="text-sm font-medium tabular-nums">{formatRelativeTime(reading.timestamp)}</div>
+            <div className="text-sm font-medium tabular-nums">
+              {formatRelativeTime(reading.timestamp)}
+            </div>
           </div>
         </div>
       </CardHeader>
@@ -97,27 +126,53 @@ export function SystemHealthCard({
       <CardContent className="space-y-4">
         <div className="flex flex-wrap items-start justify-between gap-4">
           {loadingPercent != null ? (
-            <LoadingGauge value={loadingPercent} max={125} label={`of ${transformer?.rated_kva ?? "rated"} kVA`} size={120} />
+            <LoadingGauge
+              value={loadingPercent}
+              max={125}
+              label={`of ${transformer?.rated_kva ?? "rated"} kVA`}
+              size={120}
+            />
           ) : (
             <div className="flex items-center justify-center rounded-md border border-border/80 bg-muted/30 px-4 py-6">
-              <div className="text-sm text-muted-foreground">Loading data unavailable</div>
+              <div className="text-sm text-muted-foreground">
+                Loading data unavailable
+              </div>
             </div>
           )}
 
-          <div className="flex-1 min-w-[14rem] space-y-2">
-            <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Abnormal readings</div>
+          <div className="flex-1 min-w-0 space-y-2">
+            <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              Abnormal readings
+            </div>
             {abnormalMeters.length === 0 ? (
-              <div className="rounded-md border border-border/80 bg-muted/30 px-3 py-3 text-sm text-muted-foreground">All monitored metrics within expected range.</div>
+              <div className="rounded-md border border-border/80 bg-muted/30 px-3 py-3 text-sm text-muted-foreground">
+                All monitored metrics within expected range.
+              </div>
             ) : (
               <div className="space-y-2">
                 {abnormalMeters
                   .slice()
-                  .sort((a, b) => (a.status === b.status ? 0 : a.status === "critical" ? -1 : 1))
+                  .sort((a, b) =>
+                    a.status === b.status
+                      ? 0
+                      : a.status === "critical"
+                        ? -1
+                        : 1,
+                  )
                   .slice(0, 5)
                   .map((m) => (
-                    <div key={m.key} className="flex items-center justify-between gap-3 rounded-md border border-border/80 bg-background/30 px-3 py-2">
+                    <div
+                      key={m.key}
+                      className="flex items-center justify-between gap-3 rounded-md border border-border/80 bg-background/30 px-3 py-2"
+                    >
                       <div className="text-sm font-medium">{m.label}</div>
-                      <Badge variant={meterBadgeVariant(m.status)}>{m.status === "critical" ? "Critical" : m.status === "warning" ? "Warning" : "Normal"}</Badge>
+                      <Badge variant={meterBadgeVariant(m.status)}>
+                        {m.status === "critical"
+                          ? "Critical"
+                          : m.status === "warning"
+                            ? "Warning"
+                            : "Normal"}
+                      </Badge>
                     </div>
                   ))}
               </div>
@@ -136,4 +191,3 @@ export function SystemHealthCard({
     </Card>
   );
 }
-

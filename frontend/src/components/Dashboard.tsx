@@ -34,8 +34,12 @@ export function Dashboard() {
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [latestReading, setLatestReading] = useState<Reading | null>(null);
   const [alerts, setAlerts] = useState<Alert[]>([]);
-  const [insights24h, setInsights24h] = useState<Awaited<ReturnType<typeof fetchTransformerInsights>> | null>(null);
-  const [recentReadingsForSparkline, setRecentReadingsForSparkline] = useState<Reading[]>([]);
+  const [insights24h, setInsights24h] = useState<Awaited<
+    ReturnType<typeof fetchTransformerInsights>
+  > | null>(null);
+  const [recentReadingsForSparkline, setRecentReadingsForSparkline] = useState<
+    Reading[]
+  >([]);
   const [transformersLoading, setTransformersLoading] = useState(true);
   const [dataLoading, setDataLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -44,7 +48,10 @@ export function Dashboard() {
   const isAuthenticated = me != null;
   const isAuthenticating = !!accessToken && !isAuthenticated;
 
-  const { reading: wsReading, connected } = useMonitorWebSocket(isAuthenticated ? selectedId : null, accessToken);
+  const { reading: wsReading, connected } = useMonitorWebSocket(
+    isAuthenticated ? selectedId : null,
+    accessToken,
+  );
 
   const displayReading = wsReading ?? latestReading;
   const selectedTransformer = transformers.find((t) => t.id === selectedId);
@@ -53,16 +60,21 @@ export function Dashboard() {
   const unacknowledgedCount = alerts.filter((a) => !a.acknowledged).length;
   const [showAddTransformer, setShowAddTransformer] = useState(false);
   const [transformerQuery, setTransformerQuery] = useState("");
-  const [showTransformerManagement, setShowTransformerManagement] = useState(true);
+  const [showTransformerManagement, setShowTransformerManagement] =
+    useState(true);
   const [showContactsScreen, setShowContactsScreen] = useState(false);
 
-  const [editTransformer, setEditTransformer] = useState<Transformer | null>(null);
+  const [editTransformer, setEditTransformer] = useState<Transformer | null>(
+    null,
+  );
   const [showEditTransformer, setShowEditTransformer] = useState(false);
 
-  const [deleteTransformer, setDeleteTransformer] = useState<Transformer | null>(null);
+  const [deleteTransformer, setDeleteTransformer] =
+    useState<Transformer | null>(null);
   const [showDeleteTransformer, setShowDeleteTransformer] = useState(false);
 
-  const [resetTargetTransformer, setResetTargetTransformer] = useState<Transformer | null>(null);
+  const [resetTargetTransformer, setResetTargetTransformer] =
+    useState<Transformer | null>(null);
   const [showResetTransformer, setShowResetTransformer] = useState(false);
 
   const [activeTab, setActiveTab] = useState<NavKey>("monitoring");
@@ -129,8 +141,7 @@ export function Dashboard() {
       } catch (e) {
         console.error("Failed to fetch data:", e);
         setError("Failed to load readings and alerts for this transformer.");
-      }
-      finally {
+      } finally {
         setDataLoading(false);
       }
     })();
@@ -179,7 +190,7 @@ export function Dashboard() {
       <Dialog open={mobileNavOpen} onOpenChange={setMobileNavOpen}>
         <DialogPortal>
           <DialogOverlay />
-          <DialogContent className="left-0 top-0 max-w-[86vw] -translate-x-0 -translate-y-0 rounded-none p-0">
+          <DialogContent className="left-0 top-0 max-w-[min(86vw,20rem)] -translate-x-0 -translate-y-0 rounded-none p-0">
             <Sidebar
               active={activeTab}
               isAdmin={isAdmin}
@@ -193,9 +204,12 @@ export function Dashboard() {
         </DialogPortal>
       </Dialog>
 
-      <main className="flex gap-6 px-4 py-6 sm:px-6 lg:px-8">
-        <aside className="hidden w-72 shrink-0 lg:block" aria-label="Sidebar navigation">
-          <div className="sticky top-[5.25rem] h-[calc(100vh-5.25rem)] overflow-y-auto rounded-lg border border-border/80 bg-card">
+      <main className="flex gap-4 px-3 py-6 sm:gap-6 sm:px-4 md:px-6 lg:px-8">
+        <aside
+          className="hidden w-72 shrink-0 lg:block"
+          aria-label="Sidebar navigation"
+        >
+          <div className="sticky top-[4.25rem] h-[calc(100vh-4.25rem)] overflow-y-auto rounded-lg border border-border/80 bg-card">
             <Sidebar
               active={activeTab}
               isAdmin={isAdmin}
@@ -205,8 +219,7 @@ export function Dashboard() {
           </div>
         </aside>
 
-        <div className="min-w-0 flex-1 space-y-8">
-
+        <div className="@container min-w-0 flex-1 space-y-8">
           {activeTab === "monitoring" ? (
             <MonitoringView
               transformers={transformers}
@@ -222,13 +235,21 @@ export function Dashboard() {
               error={error}
             />
           ) : (
-            <div role="tabpanel" id="tabpanel-management" aria-labelledby="tab-management">
+            <div
+              role="tabpanel"
+              id="tabpanel-management"
+              aria-labelledby="tab-management"
+            >
               {isAdmin && showTransformerManagement && (
                 <Card className="border-border/80 shadow-none">
                   <CardHeader className="flex flex-row items-center justify-between gap-4">
                     <div className="space-y-0.5">
-                      <CardTitle className="text-base font-semibold">Transformer Management</CardTitle>
-                      <div className="text-xs text-muted-foreground">CRUD operations (admin only)</div>
+                      <CardTitle className="text-base font-semibold">
+                        Transformer Management
+                      </CardTitle>
+                      <div className="text-xs text-muted-foreground">
+                        CRUD operations (admin only)
+                      </div>
                     </div>
                     <div className="flex items-center gap-2">
                       <Button
@@ -248,7 +269,7 @@ export function Dashboard() {
                         size="sm"
                         onClick={() => setShowTransformerManagement(false)}
                       >
-                      Collapse
+                        Collapse
                       </Button>
                     </div>
                   </CardHeader>
@@ -262,7 +283,11 @@ export function Dashboard() {
                           placeholder="Search by name, serial, phone, or site..."
                           aria-label="Search transformers"
                         />
-                        <Button type="button" size="sm" onClick={() => setShowAddTransformer(true)}>
+                        <Button
+                          type="button"
+                          size="sm"
+                          onClick={() => setShowAddTransformer(true)}
+                        >
                           Add
                         </Button>
                       </div>
@@ -310,7 +335,11 @@ export function Dashboard() {
 
               {isAdmin && !showTransformerManagement && (
                 <div className="pt-2">
-                  <Button type="button" variant="outline" onClick={() => setShowTransformerManagement(true)}>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setShowTransformerManagement(true)}
+                  >
                     Manage Transformers
                   </Button>
                 </div>
@@ -318,7 +347,8 @@ export function Dashboard() {
 
               {!isAdmin && (
                 <div className="text-sm text-muted-foreground">
-                  Transformer Management is locked. Ask an admin to enable access.
+                  Transformer Management is locked. Ask an admin to enable
+                  access.
                 </div>
               )}
             </div>
@@ -329,7 +359,7 @@ export function Dashboard() {
           className="hidden w-full shrink-0 lg:block lg:w-80 xl:w-96"
           aria-label="Alerts"
         >
-          <div className="sticky top-[4.5rem] max-h-[calc(100vh-5rem)] overflow-y-auto">
+          <div className="sticky top-[4.25rem] max-h-[calc(100vh-4.25rem)] overflow-y-auto">
             <AlertsList
               alerts={alerts}
               setAlerts={setAlerts}
@@ -419,4 +449,3 @@ export function Dashboard() {
     </div>
   );
 }
-

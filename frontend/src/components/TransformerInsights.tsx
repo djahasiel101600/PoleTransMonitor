@@ -109,7 +109,7 @@ export function TransformerInsights({
   }
 
   return (
-    <Card className="border-border/80 shadow-none">
+    <Card className="@container border-border/80 shadow-none">
       <CardHeader className="pb-2">
         <CardTitle className="text-base font-semibold">
           Status at a glance
@@ -122,9 +122,9 @@ export function TransformerInsights({
         {hasAny && (
           <>
             {/* Loading gauge + status pills row */}
-            <div className="flex flex-col items-center gap-6 lg:flex-row lg:items-start">
+            <div className="flex flex-col items-center gap-6 @lg:flex-row @lg:items-start">
               {loadingPercent != null && (
-                <div className="lg:flex-shrink-0">
+                <div className="@lg:flex-shrink-0">
                   <LoadingGauge
                     value={loadingPercent}
                     max={125}
@@ -132,7 +132,7 @@ export function TransformerInsights({
                   />
                 </div>
               )}
-              <div className="flex w-full flex-1 flex-wrap gap-2 lg:max-w-none">
+              <div className="flex w-full flex-1 flex-wrap gap-2 @lg:max-w-none">
                 {voltageStatus != null && (
                   <div className="flex-1 basis-24 rounded-md border border-border/80 bg-muted/30 px-3 py-2">
                     <p className="text-xs uppercase text-muted-foreground">

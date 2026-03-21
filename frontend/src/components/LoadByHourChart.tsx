@@ -99,7 +99,7 @@ export function LoadByHourChart({
           <Skeleton className="h-5 w-48" />
         </CardHeader>
         <CardContent>
-          <Skeleton className="h-[clamp(12rem,28vh,16rem)] w-full rounded-lg" />
+          <Skeleton className="h-[clamp(10rem,35vh,18rem)] w-full rounded-lg" />
         </CardContent>
       </Card>
     );
@@ -132,11 +132,11 @@ export function LoadByHourChart({
       </CardHeader>
       <CardContent>
         {!hasData ? (
-          <div className="flex h-[clamp(12rem,28vh,16rem)] items-center justify-center text-sm text-muted-foreground">
+          <div className="flex h-[clamp(10rem,35vh,18rem)] items-center justify-center text-sm text-muted-foreground">
             No load data for this period
           </div>
         ) : (
-          <div className="h-[clamp(12rem,28vh,16rem)]">
+          <div className="h-[clamp(10rem,35vh,18rem)]">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={data} margin={CHART_MARGIN}>
                 <CartesianGrid

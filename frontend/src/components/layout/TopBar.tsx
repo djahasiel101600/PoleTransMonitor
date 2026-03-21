@@ -31,7 +31,7 @@ export function TopBar({
 }) {
   return (
     <header className="sticky top-0 z-10 border-b border-border/80 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-      <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-4 sm:px-6 lg:px-8">
+      <div className="mx-auto flex items-center justify-between gap-3 px-4 py-4 sm:px-6 lg:px-8">
         <div className="flex min-w-0 items-center gap-3">
           <Button
             type="button"
@@ -107,7 +107,19 @@ export function TopBar({
             onClick={onAddTransformer}
             className="h-9"
           >
-            Add Transformer
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="h-4 w-4 sm:hidden"
+            >
+              <path d="M12 5v14M5 12h14" />
+            </svg>
+            <span className="hidden sm:inline">Add Transformer</span>
           </Button>
 
           {unacknowledgedCount > 0 ? (

@@ -41,7 +41,9 @@ export function DeleteTransformerDialog({
       onDeleted(transformer.id);
       onClose();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to delete transformer");
+      setError(
+        err instanceof Error ? err.message : "Failed to delete transformer",
+      );
     } finally {
       setSubmitting(false);
     }
@@ -57,28 +59,41 @@ export function DeleteTransformerDialog({
       <DialogPortal>
         <DialogOverlay />
         <DialogContent>
-          <Card className="w-full max-w-md rounded-lg px-4 pb-4 sm:px-0 sm:pb-0 max-h-[85vh] overflow-y-auto">
+          <Card className="w-full rounded-lg max-h-[85vh] overflow-y-auto">
             <CardHeader>
               <DialogTitle>Delete Transformer</DialogTitle>
             </CardHeader>
             <CardContent>
               <div className="space-y-2">
                 <div className="text-sm text-foreground">
-                  Are you sure you want to delete <span className="font-medium">{transformer.name}</span>?
+                  Are you sure you want to delete{" "}
+                  <span className="font-medium">{transformer.name}</span>?
                 </div>
                 {transformer.phone_number && (
-                  <div className="text-xs text-muted-foreground">Phone: {transformer.phone_number}</div>
+                  <div className="text-xs text-muted-foreground">
+                    Phone: {transformer.phone_number}
+                  </div>
                 )}
                 <div className="text-xs text-muted-foreground">
-                  This will also delete related readings and alerts (cascade delete).
+                  This will also delete related readings and alerts (cascade
+                  delete).
                 </div>
                 {error && (
-                  <div role="alert" aria-live="polite" className="text-sm text-destructive">
+                  <div
+                    role="alert"
+                    aria-live="polite"
+                    className="text-sm text-destructive"
+                  >
                     {error}
                   </div>
                 )}
                 <div className="flex items-center justify-end gap-2 pt-2">
-                  <Button type="button" variant="outline" onClick={onClose} disabled={submitting}>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={onClose}
+                    disabled={submitting}
+                  >
                     Cancel
                   </Button>
                   <Button
@@ -98,4 +113,3 @@ export function DeleteTransformerDialog({
     </Dialog>
   );
 }
-

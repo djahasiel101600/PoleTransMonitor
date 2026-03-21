@@ -41,7 +41,9 @@ export function ResetTransformerDialog({
       onResetDone(transformer.id);
       onClose();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to reset transformer");
+      setError(
+        err instanceof Error ? err.message : "Failed to reset transformer",
+      );
     } finally {
       setSubmitting(false);
     }
@@ -57,7 +59,7 @@ export function ResetTransformerDialog({
       <DialogPortal>
         <DialogOverlay />
         <DialogContent>
-          <Card className="w-full max-w-md rounded-lg px-4 pb-4 sm:px-0 sm:pb-0 max-h-[85vh] overflow-y-auto">
+          <Card className="w-full rounded-lg max-h-[85vh] overflow-y-auto">
             <CardHeader className="space-y-1">
               <DialogTitle>Reset Transformer</DialogTitle>
               <div className="text-xs text-muted-foreground">
@@ -70,21 +72,33 @@ export function ResetTransformerDialog({
                   Reset <span className="font-medium">{transformer.name}</span>?
                 </div>
                 <div className="text-xs text-muted-foreground">
-                  This will delete stored readings and alerts for this transformer, and set an energy baseline offset so
-                  the dashboard energy counter starts near 0 after replacement. The device energy isn’t physically reset.
+                  This will delete stored readings and alerts for this
+                  transformer, and set an energy baseline offset so the
+                  dashboard energy counter starts near 0 after replacement. The
+                  device energy isn’t physically reset.
                 </div>
                 <div className="text-xs text-muted-foreground">
-                  Use this when a transformer/PZEM module was replaced or the energy counter needs re-zeroing.
+                  Use this when a transformer/PZEM module was replaced or the
+                  energy counter needs re-zeroing.
                 </div>
 
                 {error && (
-                  <div role="alert" aria-live="polite" className="text-sm text-destructive">
+                  <div
+                    role="alert"
+                    aria-live="polite"
+                    className="text-sm text-destructive"
+                  >
                     {error}
                   </div>
                 )}
 
                 <div className="flex items-center justify-end gap-2 pt-2">
-                  <Button type="button" variant="outline" onClick={onClose} disabled={submitting}>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={onClose}
+                    disabled={submitting}
+                  >
                     Cancel
                   </Button>
                   <Button
@@ -104,4 +118,3 @@ export function ResetTransformerDialog({
     </Dialog>
   );
 }
-

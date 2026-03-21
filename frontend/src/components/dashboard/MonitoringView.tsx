@@ -76,7 +76,7 @@ export function MonitoringView({
           </div>
         </div>
 
-        <div className="grid gap-4 lg:grid-cols-3">
+        <div className="grid gap-4 @md:grid-cols-2 @3xl:grid-cols-3">
           <SystemHealthCard
             reading={reading}
             transformer={selectedTransformer}
@@ -126,8 +126,8 @@ export function MonitoringView({
           </div>
         </div>
 
-        <div className="grid gap-4 lg:grid-cols-3">
-          <div className="lg:col-span-2">
+        <div className="grid gap-4 @md:grid-cols-2 @3xl:grid-cols-3">
+          <div className="@3xl:col-span-2">
             <LiveMeters
               reading={reading}
               loading={loading}
@@ -135,7 +135,7 @@ export function MonitoringView({
               recentReadings={recentReadingsForSparkline}
             />
           </div>
-          <div className="lg:col-span-1">
+          <div className="@3xl:col-span-1">
             <DeviceStatusTable
               transformers={transformers}
               selectedId={selectedId}
@@ -157,7 +157,7 @@ export function MonitoringView({
           </div>
         </div>
 
-        <div className="grid gap-4 lg:grid-cols-2">
+        <div className="grid gap-4 @md:grid-cols-2">
           <ReadingsChart transformerId={selectedId} />
           <LoadByHourChart transformerId={selectedId} />
         </div>

@@ -8,7 +8,6 @@ import type { Reading, Transformer } from "../types";
 
 import { computeMeterStatus, type MeterStatus } from "../lib/energyStatus";
 
-
 const VOLTAGE_RANGE = { min: 0, max: 500 };
 const CURRENT_RANGE = { min: 0, max: 500 };
 const POWER_RANGE = { min: 0, max: 100000 };
@@ -18,7 +17,7 @@ const ENERGY_KWH_RANGE = { min: 0, max: 999999 };
 
 function formatMeterValue(
   value: number | null | undefined,
-  opts?: { min?: number; max?: number; decimals?: number }
+  opts?: { min?: number; max?: number; decimals?: number },
 ): string {
   if (value == null || Number.isNaN(value)) return "--";
   if (opts?.min != null && value < opts.min) return "--";
@@ -56,29 +55,70 @@ function Sparkline({ values }: { values: number[] }) {
 function MeterIcon({ name }: { name: string }) {
   const icons: Record<string, ReactElement> = {
     voltage: (
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={2}
+        d="M13 10V3L4 14h7v7l9-11h-7z"
+      />
     ),
     current: (
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={2}
+        d="M4 6h16M4 12h16M4 18h16"
+      />
     ),
     power: (
       <>
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 12h16" />
+        <path
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeWidth={2}
+          d="M13 10V3L4 14h7v7l9-11h-7z"
+        />
+        <path
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeWidth={2}
+          d="M4 12h16"
+        />
       </>
     ),
     pf: (
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10" />
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={2}
+        d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10"
+      />
     ),
     frequency: (
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={2}
+        d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+      />
     ),
     energy: (
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z" />
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={2}
+        d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z"
+      />
     ),
   };
   return (
-    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" className="h-5 w-5 text-muted-foreground">
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      fill="none"
+      viewBox="0 0 24 24"
+      stroke="currentColor"
+      className="h-5 w-5 text-muted-foreground"
+    >
       {icons[name]}
     </svg>
   );
@@ -131,7 +171,9 @@ const Meter = memo(function Meter({
           {status !== "normal" && hasValue && (
             <span
               className={`ml-1.5 text-[10px] ${
-                status === "critical" ? "text-red-600 dark:text-red-400" : "text-amber-600 dark:text-amber-400"
+                status === "critical"
+                  ? "text-red-600 dark:text-red-400"
+                  : "text-amber-600 dark:text-amber-400"
               }`}
             >
               {status === "critical" ? "· Out of range" : "· Warning"}
@@ -157,7 +199,7 @@ const Meter = memo(function Meter({
 
 function getSparklineValues(readings: Reading[], key: keyof Reading): number[] {
   const sorted = [...readings].sort(
-    (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+    (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime(),
   );
   return sorted
     .map((r) => r[key])
@@ -177,11 +219,11 @@ export function LiveMeters({
 }) {
   if (loading) {
     return (
-      <Card className="border-border/80 shadow-none">
+      <Card className="@container border-border/80 shadow-none">
         <CardHeader className="pb-3">
           <Skeleton className="h-5 w-24" />
         </CardHeader>
-        <CardContent className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <CardContent className="grid gap-3 @xs:grid-cols-2 @lg:grid-cols-3">
           {[...Array(6)].map((_, i) => (
             <Skeleton key={`meter-skeleton-${i}`} className="h-16 rounded-lg" />
           ))}
@@ -220,7 +262,7 @@ export function LiveMeters({
   }
 
   return (
-    <Card className="border-border/80 shadow-none">
+    <Card className="@container border-border/80 shadow-none">
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
         <div>
           <CardTitle className="text-base font-semibold">Readings</CardTitle>
@@ -230,14 +272,18 @@ export function LiveMeters({
         </div>
         <ConditionBadge condition={reading.condition} />
       </CardHeader>
-      <CardContent className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+      <CardContent className="grid gap-3 @xs:grid-cols-2 @lg:grid-cols-3">
         <Meter
           label="Voltage"
           value={reading.voltage}
           unit="V"
           validRange={VOLTAGE_RANGE}
           icon="voltage"
-          status={computeMeterStatus("voltage", reading.voltage ?? null, transformer)}
+          status={computeMeterStatus(
+            "voltage",
+            reading.voltage ?? null,
+            transformer,
+          )}
           sparklineValues={getSparklineValues(recentReadings, "voltage")}
         />
         <Meter
@@ -246,7 +292,11 @@ export function LiveMeters({
           unit="A"
           validRange={CURRENT_RANGE}
           icon="current"
-          status={computeMeterStatus("current", reading.current ?? null, transformer)}
+          status={computeMeterStatus(
+            "current",
+            reading.current ?? null,
+            transformer,
+          )}
           sparklineValues={getSparklineValues(recentReadings, "current")}
         />
         <Meter
@@ -265,7 +315,11 @@ export function LiveMeters({
           validRange={POWER_RANGE}
           decimals={0}
           icon="power"
-          status={computeMeterStatus("apparent_power", reading.apparent_power ?? null, transformer)}
+          status={computeMeterStatus(
+            "apparent_power",
+            reading.apparent_power ?? null,
+            transformer,
+          )}
           sparklineValues={getSparklineValues(recentReadings, "apparent_power")}
         />
         <Meter
@@ -274,7 +328,11 @@ export function LiveMeters({
           unit=""
           validRange={POWER_FACTOR_RANGE}
           icon="pf"
-          status={computeMeterStatus("power_factor", reading.power_factor ?? null, transformer)}
+          status={computeMeterStatus(
+            "power_factor",
+            reading.power_factor ?? null,
+            transformer,
+          )}
           sparklineValues={getSparklineValues(recentReadings, "power_factor")}
         />
         <Meter
@@ -283,7 +341,11 @@ export function LiveMeters({
           unit="Hz"
           validRange={FREQUENCY_RANGE}
           icon="frequency"
-          status={computeMeterStatus("frequency", reading.frequency ?? null, transformer)}
+          status={computeMeterStatus(
+            "frequency",
+            reading.frequency ?? null,
+            transformer,
+          )}
           sparklineValues={getSparklineValues(recentReadings, "frequency")}
         />
         <Meter

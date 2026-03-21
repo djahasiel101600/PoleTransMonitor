@@ -62,7 +62,7 @@ export function LoginDialog({
       <DialogPortal>
         <DialogOverlay />
         <DialogContent>
-          <Card className="w-full max-w-md rounded-lg px-4 pb-4 sm:px-0 sm:pb-0 max-h-[85vh] overflow-y-auto">
+          <Card className="w-full rounded-lg max-h-[85vh] overflow-y-auto">
             <CardHeader>
               <DialogTitle>Admin login</DialogTitle>
             </CardHeader>
@@ -90,16 +90,28 @@ export function LoginDialog({
                 </div>
 
                 {error && (
-                  <div role="alert" aria-live="polite" className="text-sm text-destructive">
+                  <div
+                    role="alert"
+                    aria-live="polite"
+                    className="text-sm text-destructive"
+                  >
                     {error}
                   </div>
                 )}
 
                 <div className="flex items-center justify-end gap-2 pt-2">
-                  <Button type="button" variant="outline" onClick={onClose} disabled={submitting}>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={onClose}
+                    disabled={submitting}
+                  >
                     Cancel
                   </Button>
-                  <Button type="submit" disabled={submitting || username.trim().length === 0}>
+                  <Button
+                    type="submit"
+                    disabled={submitting || username.trim().length === 0}
+                  >
                     {submitting ? "Logging in..." : "Login"}
                   </Button>
                 </div>
@@ -111,4 +123,3 @@ export function LoginDialog({
     </Dialog>
   );
 }
-

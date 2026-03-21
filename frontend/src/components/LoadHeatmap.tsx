@@ -13,9 +13,8 @@ function buildHeatmap(readings: Reading[]): number[][] {
     const ap = r.apparent_power;
     if (ap == null || Number.isNaN(ap)) continue;
     const d = new Date(r.timestamp);
-    // Backend timestamps are stored/served in UTC; bin in UTC to keep weekdays aligned.
-    const day = d.getUTCDay();
-    const hour = d.getUTCHours();
+    const day = d.getDay();
+    const hour = d.getHours();
     grid[day][hour] += ap / 1000;
     count[day][hour] += 1;
   }
@@ -27,18 +26,19 @@ function buildHeatmap(readings: Reading[]): number[][] {
   return grid;
 }
 
-export function LoadHeatmap({ transformerId }: { transformerId: number | null }) {
+export function LoadHeatmap({
+  transformerId,
+}: {
+  transformerId: number | null;
+}) {
   const [readings, setReadings] = useState<Reading[]>([]);
   const [loading, setLoading] = useState(false);
 
-  const since = useMemo(
-    () => {
-      // Avoid `Date.now()` (react-hooks/purity) while keeping the same UTC time window.
-      const ms = new Date().getTime() - 7 * 24 * 60 * 60 * 1000;
-      return new Date(ms).toISOString();
-    },
-    []
-  );
+  const since = useMemo(() => {
+    // Avoid `Date.now()` (react-hooks/purity) while keeping the same UTC time window.
+    const ms = new Date().getTime() - 7 * 24 * 60 * 60 * 1000;
+    return new Date(ms).toISOString();
+  }, []);
 
   useEffect(() => {
     if (transformerId == null) return;
@@ -53,7 +53,8 @@ export function LoadHeatmap({ transformerId }: { transformerId: number | null })
   const grid = useMemo(() => buildHeatmap(readings), [readings]);
   const maxVal = useMemo(() => {
     let m = 0;
-    for (let i = 0; i < 7; i++) for (let j = 0; j < 24; j++) if (grid[i][j] > m) m = grid[i][j];
+    for (let i = 0; i < 7; i++)
+      for (let j = 0; j < 24; j++) if (grid[i][j] > m) m = grid[i][j];
     return m || 1;
   }, [grid]);
 
@@ -75,10 +76,17 @@ export function LoadHeatmap({ transformerId }: { transformerId: number | null })
   return (
     <Card className="border-border/80 shadow-none">
       <CardHeader>
-        <CardTitle className="text-base font-semibold">Load heatmap (7 days)</CardTitle>
-        <p className="text-xs text-muted-foreground">Day × hour · color = avg load (kVA)</p>
+        <CardTitle className="text-base font-semibold">
+          Load heatmap (7 days)
+        </CardTitle>
+        <p className="text-xs text-muted-foreground">
+          Day × hour · color = avg load (kVA)
+        </p>
       </CardHeader>
       <CardContent className="pt-0">
+        <p className="mb-2 text-xs text-muted-foreground md:hidden">
+          Scroll right to see all hours →
+        </p>
         {/*
           Full-width heatmap: day column + 24 equal fractional columns so cells grow with the card.
           Horizontal scroll on very narrow viewports so labels stay readable.
@@ -109,9 +117,10 @@ export function LoadHeatmap({ transformerId }: { transformerId: number | null })
                         className="min-h-7 w-full min-w-0 rounded-sm transition-colors sm:min-h-10 sm:rounded-md"
                         style={{
                           backgroundColor: "var(--color-primary)",
-                          opacity: maxVal > 0 ? 0.15 + 0.85 * (v / maxVal) : 0.15,
+                          opacity:
+                            maxVal > 0 ? 0.15 + 0.85 * (v / maxVal) : 0.15,
                         }}
-                        title={`${day} ${j}:00 UTC — ${v.toFixed(2)} kVA`}
+                        title={`${day} ${j}:00 — ${v.toFixed(2)} kVA`}
                       />
                     ))}
                   </div>

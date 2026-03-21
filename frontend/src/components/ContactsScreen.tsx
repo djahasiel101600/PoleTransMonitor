@@ -73,7 +73,7 @@ export function ContactsScreen() {
       <CardContent>
         <form
           onSubmit={submit}
-          className="flex flex-col gap-3 sm:flex-row sm:items-end"
+          className="flex flex-col gap-3 md:flex-row md:items-end"
         >
           <div className="space-y-1 flex-1">
             <label className="text-sm font-medium text-foreground">

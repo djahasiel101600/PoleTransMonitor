@@ -13,10 +13,7 @@ export const DialogOverlay = forwardRef<
 >(({ className, ...props }, ref) => (
   <DialogPrimitive.Overlay
     ref={ref}
-    className={cn(
-      "fixed inset-0 z-50 bg-black/50 backdrop-blur-sm",
-      className
-    )}
+    className={cn("fixed inset-0 z-50 bg-black/50 backdrop-blur-sm", className)}
     {...props}
   />
 ));
@@ -29,10 +26,10 @@ export const DialogContent = forwardRef<
   <DialogPrimitive.Content
     ref={ref}
     className={cn(
-      "fixed left-1/2 top-1/2 z-51 w-full max-w-lg -translate-x-1/2 -translate-y-1/2",
-      "max-h-[85vh] overflow-y-auto p-0 sm:rounded-lg",
+      "fixed left-1/2 top-1/2 z-51 w-[calc(100%-2rem)] max-w-lg -translate-x-1/2 -translate-y-1/2",
+      "max-h-[85vh] overflow-y-auto p-0 rounded-lg",
       "outline-none",
-      className
+      className,
     )}
     {...props}
   >
@@ -57,7 +54,10 @@ export const DialogFooter = ({
   ...props
 }: React.HTMLAttributes<HTMLDivElement>) => (
   <div
-    className={cn("flex flex-col-reverse sm:flex-row sm:justify-end sm:gap-2", className)}
+    className={cn(
+      "flex flex-col-reverse sm:flex-row sm:justify-end sm:gap-2",
+      className,
+    )}
     {...props}
   />
 );
@@ -69,7 +69,10 @@ export const DialogTitle = forwardRef<
 >(({ className, ...props }, ref) => (
   <DialogPrimitive.Title
     ref={ref}
-    className={cn("text-base font-semibold leading-none tracking-tight", className)}
+    className={cn(
+      "text-base font-semibold leading-none tracking-tight",
+      className,
+    )}
     {...props}
   />
 ));
@@ -86,4 +89,3 @@ export const DialogDescription = forwardRef<
   />
 ));
 DialogDescription.displayName = DialogPrimitive.Description.displayName;
-

@@ -24,7 +24,10 @@ const TIME_RANGES: { value: TimeRange; label: string; ms: number }[] = [
   { value: "24h", label: "24 hours", ms: 24 * 60 * 60 * 1000 },
 ];
 
-const METRIC_CONFIG: Record<Metric, { label: string; color: string; dataKey: string }> = {
+const METRIC_CONFIG: Record<
+  Metric,
+  { label: string; color: string; dataKey: string }
+> = {
   voltage: { label: "Voltage (V)", color: "#0d9488", dataKey: "voltage" },
   current: { label: "Current (A)", color: "#0f766e", dataKey: "current" },
 };
@@ -50,14 +53,20 @@ function formatTooltipTime(t: string) {
   return new Date(t).toLocaleString();
 }
 
-export function ReadingsChart({ transformerId }: { transformerId: number | null }) {
+export function ReadingsChart({
+  transformerId,
+}: {
+  transformerId: number | null;
+}) {
   const [readings, setReadings] = useState<Reading[]>([]);
   const [loading, setLoading] = useState(false);
   const [timeRange, setTimeRange] = useState<TimeRange>("1h");
-  const [visibleMetrics, setVisibleMetrics] = useState<Record<Metric, boolean>>({
-    voltage: true,
-    current: true,
-  });
+  const [visibleMetrics, setVisibleMetrics] = useState<Record<Metric, boolean>>(
+    {
+      voltage: true,
+      current: true,
+    },
+  );
   const { reading: wsReading, connected } = useMonitorWebSocket(transformerId);
 
   const rangeMs = TIME_RANGES.find((r) => r.value === timeRange)!.ms;
@@ -66,7 +75,7 @@ export function ReadingsChart({ transformerId }: { transformerId: number | null 
       const cutoff = Date.now() - rangeMs;
       return list.filter((r) => new Date(r.timestamp).getTime() >= cutoff);
     },
-    [rangeMs]
+    [rangeMs],
   );
 
   useEffect(() => {
@@ -86,10 +95,11 @@ export function ReadingsChart({ transformerId }: { transformerId: number | null 
         const seen = new Set(prev.map((r) => r.id));
         if (seen.has(wsReading.id)) return prev;
         const merged = [...prev, wsReading].sort(
-          (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+          (a, b) =>
+            new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime(),
         );
         return trimToRange(merged);
-      })
+      }),
     );
   }, [wsReading, trimToRange]);
 
@@ -97,15 +107,26 @@ export function ReadingsChart({ transformerId }: { transformerId: number | null 
     () =>
       readings.map((r) => ({
         time: r.timestamp,
-        voltage: isValidNum(r.voltage) && r.voltage >= 0 && r.voltage <= 500 ? r.voltage : null,
-        current: isValidNum(r.current) && r.current >= 0 && r.current <= 500 ? r.current : null,
-        power: isValidNum(r.apparent_power) && r.apparent_power >= 0 ? r.apparent_power : null,
+        voltage:
+          isValidNum(r.voltage) && r.voltage >= 0 && r.voltage <= 500
+            ? r.voltage
+            : null,
+        current:
+          isValidNum(r.current) && r.current >= 0 && r.current <= 500
+            ? r.current
+            : null,
+        power:
+          isValidNum(r.apparent_power) && r.apparent_power >= 0
+            ? r.apparent_power
+            : null,
       })),
-    [readings]
+    [readings],
   );
 
-  const showVoltage = visibleMetrics.voltage && chartData.some((d) => d.voltage != null);
-  const showCurrent = visibleMetrics.current && chartData.some((d) => d.current != null);
+  const showVoltage =
+    visibleMetrics.voltage && chartData.some((d) => d.voltage != null);
+  const showCurrent =
+    visibleMetrics.current && chartData.some((d) => d.current != null);
 
   const hasData = showVoltage || showCurrent;
 
@@ -128,7 +149,7 @@ export function ReadingsChart({ transformerId }: { transformerId: number | null 
           <Skeleton className="h-5 w-24" />
         </CardHeader>
         <CardContent>
-          <Skeleton className="h-[clamp(12rem,28vh,16rem)] w-full rounded-lg" />
+          <Skeleton className="h-[clamp(10rem,35vh,18rem)] w-full rounded-lg" />
         </CardContent>
       </Card>
     );
@@ -141,14 +162,20 @@ export function ReadingsChart({ transformerId }: { transformerId: number | null 
           <CardTitle className="text-base font-semibold">Trends</CardTitle>
           {connected && (
             <span className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
-              <span className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse" aria-hidden />
+              <span
+                className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse"
+                aria-hidden
+              />
               Live
             </span>
           )}
           <div className="flex items-center gap-2 text-xs">
             <span className="text-muted-foreground">Metrics:</span>
             {(Object.keys(METRIC_CONFIG) as Metric[]).map((m) => (
-              <label key={m} className="flex cursor-pointer items-center gap-1.5">
+              <label
+                key={m}
+                className="flex cursor-pointer items-center gap-1.5"
+              >
                 <input
                   type="checkbox"
                   checked={visibleMetrics[m]}
@@ -156,7 +183,11 @@ export function ReadingsChart({ transformerId }: { transformerId: number | null 
                   className="h-3.5 w-3.5 rounded border-border"
                 />
                 <span
-                  style={{ color: visibleMetrics[m] ? METRIC_CONFIG[m].color : "var(--muted-foreground)" }}
+                  style={{
+                    color: visibleMetrics[m]
+                      ? METRIC_CONFIG[m].color
+                      : "var(--muted-foreground)",
+                  }}
                 >
                   {METRIC_CONFIG[m].label.replace(/ \(\w+\)$/, "")}
                 </span>
@@ -183,16 +214,21 @@ export function ReadingsChart({ transformerId }: { transformerId: number | null 
       </CardHeader>
       <CardContent>
         {!hasData ? (
-          <div className="flex h-[clamp(12rem,28vh,16rem)] flex-col items-center justify-center text-center text-sm text-muted-foreground">
+          <div className="flex h-[clamp(10rem,35vh,18rem)] flex-col items-center justify-center text-center text-sm text-muted-foreground">
             <p>No historical data for this period</p>
-            <p className="mt-1 text-xs">Readings will appear as the ESP32 sends data</p>
+            <p className="mt-1 text-xs">
+              Readings will appear as the ESP32 sends data
+            </p>
           </div>
         ) : (
           <div className="space-y-6">
-            <div className="h-[clamp(12rem,28vh,16rem)]">
+            <div className="h-[clamp(10rem,35vh,18rem)]">
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={chartData} margin={CHART_MARGIN}>
-                  <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+                  <CartesianGrid
+                    strokeDasharray="3 3"
+                    className="stroke-border"
+                  />
                   <XAxis
                     dataKey="time"
                     tickFormatter={formatTime}
@@ -202,7 +238,10 @@ export function ReadingsChart({ transformerId }: { transformerId: number | null 
                   />
                   <YAxis
                     yAxisId="left"
-                    tick={{ fontSize: 11, fill: showVoltage ? "#0369a1" : "currentColor" }}
+                    tick={{
+                      fontSize: 11,
+                      fill: showVoltage ? "#0369a1" : "currentColor",
+                    }}
                     stroke={showVoltage ? "#0369a1" : "currentColor"}
                     className="text-muted-foreground"
                     domain={["auto", "auto"]}
@@ -210,13 +249,18 @@ export function ReadingsChart({ transformerId }: { transformerId: number | null 
                   <YAxis
                     yAxisId="right"
                     orientation="right"
-                    tick={{ fontSize: 11, fill: showCurrent ? "#0d9488" : "currentColor" }}
+                    tick={{
+                      fontSize: 11,
+                      fill: showCurrent ? "#0d9488" : "currentColor",
+                    }}
                     stroke={showCurrent ? "#0d9488" : "currentColor"}
                     className="text-muted-foreground"
                     domain={["auto", "auto"]}
                   />
                   <Tooltip
-                    labelFormatter={(value) => formatTooltipTime(String(value ?? ""))}
+                    labelFormatter={(value) =>
+                      formatTooltipTime(String(value ?? ""))
+                    }
                     contentStyle={TOOLTIP_CONTENT_STYLE}
                     labelStyle={TOOLTIP_LABEL_STYLE}
                   />
