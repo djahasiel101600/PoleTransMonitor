@@ -4,7 +4,7 @@ import type { Reading } from "../types";
 const WS_BASE = import.meta.env.VITE_WS_URL || "ws://localhost:8000";
 
 /** If no reading arrives within this window, mark the device as stale. */
-const DEVICE_STALE_MS = 15_000; // 3× the 5s sample interval
+const DEVICE_STALE_MS = 60_000; // 3× the 5s sample interval
 
 export function useMonitorWebSocket(transformerId: number | null, accessToken?: string | null) {
   const [reading, setReading] = useState<Reading | null>(null);
