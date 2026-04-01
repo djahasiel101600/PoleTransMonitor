@@ -337,9 +337,9 @@ void loop()
   }
   Serial.println();
 
-  Serial.printf("[DEBUG] V=%.1f A=%.2f VA=%.0f PF=%.2f Hz=%.1f Oil=%.1f C | %s\n",
+  Serial.printf("[DEBUG] V=%.1f A=%.2f VA=%.0f PF=%.2f Hz=%.1f kWh=%.2f | %s\n",
                 sensorData.voltage, sensorData.current, sensorData.apparentPower,
-                sensorData.powerFactor, sensorData.frequency, sensorData.oilTemp, condition);
+                sensorData.powerFactor, sensorData.frequency, pzemRead.energy, condition);
 #endif
 
   if (WiFi.status() == WL_CONNECTED && configMgr.isActive())
@@ -464,8 +464,8 @@ void loop()
         Serial.printf("[DEBUG] Sending status reply to %s\n", sender);
 #endif
         // Format electrical parameters for SMS (single segment; n/a for invalid)
-        char statusMsg[160];
-        char v[12], a[12], va[12], pf[12], hz[12], oil[12];
+        char statusMsg[200];
+        char v[12], a[12], va[12], pf[12], hz[12], kwh[12];
         if (!isnan(sensorData.voltage))
           snprintf(v, sizeof(v), "%.1f", sensorData.voltage);
         else
@@ -486,12 +486,13 @@ void loop()
           snprintf(hz, sizeof(hz), "%.1f", sensorData.frequency);
         else
           strcpy(hz, "n/a");
-        if (!isnan(sensorData.oilTemp))
-          snprintf(oil, sizeof(oil), "%.1f", sensorData.oilTemp);
+        if (pzemRead.valid && !isnan(pzemRead.energy) && pzemRead.energy >= 0.0f)
+          snprintf(kwh, sizeof(kwh), "%.2f", pzemRead.energy);
         else
-          strcpy(oil, "n/a");
-        snprintf(statusMsg, sizeof(statusMsg), "V=%s A=%s VA=%s PF=%s Hz=%s Oil=%sC | %s",
-                 v, a, va, pf, hz, oil, condition ? condition : "?");
+          strcpy(kwh, "n/a");
+        snprintf(statusMsg, sizeof(statusMsg),
+                 "Voltage: %s\nCurrent: %s\nApparent Power: %s\nPower Factor: %s\nFrequency: %s\nEnergy: %s kWh\nStatus: %s",
+                 v, a, va, pf, hz, kwh, condition ? condition : "?");
         if (sim7600.sendSms(sender, statusMsg))
         {
 #if DEBUG_SERIAL
