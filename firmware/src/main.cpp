@@ -464,8 +464,8 @@ void loop()
         Serial.printf("[DEBUG] Sending status reply to %s\n", sender);
 #endif
         // Format electrical parameters for SMS (single segment; n/a for invalid)
-        char statusMsg[200];
-        char v[12], a[12], va[12], pf[12], hz[12], kwh[12];
+        char statusMsg[220];
+        char v[12], a[12], va[12], w[12], pf[12], hz[12], kwh[12];
         if (!isnan(sensorData.voltage))
           snprintf(v, sizeof(v), "%.1f", sensorData.voltage);
         else
@@ -478,6 +478,10 @@ void loop()
           snprintf(va, sizeof(va), "%.0f", sensorData.apparentPower);
         else
           strcpy(va, "n/a");
+        if (pzemRead.valid && !isnan(pzemRead.power) && pzemRead.power >= 0.0f)
+          snprintf(w, sizeof(w), "%.1f", pzemRead.power);
+        else
+          strcpy(w, "n/a");
         if (!isnan(sensorData.powerFactor))
           snprintf(pf, sizeof(pf), "%.2f", sensorData.powerFactor);
         else
@@ -491,8 +495,8 @@ void loop()
         else
           strcpy(kwh, "n/a");
         snprintf(statusMsg, sizeof(statusMsg),
-                 "Voltage: %s\nCurrent: %s\nApparent Power: %s\nPower Factor: %s\nFrequency: %s\nEnergy: %s kWh\nStatus: %s",
-                 v, a, va, pf, hz, kwh, condition ? condition : "?");
+                 "Voltage: %s\nCurrent: %s\nApparent Power: %s\nReal Power: %s W\nPower Factor: %s\nFrequency: %s\nEnergy: %s kWh\nStatus: %s",
+                 v, a, va, w, pf, hz, kwh, condition ? condition : "?");
         if (sim7600.sendSms(sender, statusMsg))
         {
 #if DEBUG_SERIAL

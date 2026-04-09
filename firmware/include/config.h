@@ -23,7 +23,7 @@
 
 // SIM A7670E SMS (set to 1 to enable)
 #define ENABLE_SIM 1
-#define SMS_RECIPIENT "+639922790155"
+#define SMS_RECIPIENT "+639058122818"
 // Send one test SMS when modem is ready (set to 1 to verify SMS path)
 #define SEND_TEST_SMS_ON_BOOT 1
 #define TEST_SMS_MESSAGE "PoleTransMonitor test - SMS working"
