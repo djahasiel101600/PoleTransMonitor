@@ -68,3 +68,44 @@ export interface Alert {
   sms_sent: boolean;
   acknowledged: boolean;
 }
+
+// ---------------------------------------------------------------------------
+// Report filters & pagination
+// ---------------------------------------------------------------------------
+
+export interface ReadingFilters {
+  transformer?: number;
+  timestamp_gte?: string;
+  timestamp_lte?: string;
+  condition?: string;        // comma-separated
+  voltage_gte?: number;
+  voltage_lte?: number;
+  current_gte?: number;
+  current_lte?: number;
+  oil_temp_gte?: number;
+  oil_temp_lte?: number;
+  power_factor_gte?: number;
+  power_factor_lte?: number;
+  page?: number;
+  page_size?: number;
+  ordering?: string;
+}
+
+export interface AlertFilters {
+  transformer?: number;
+  timestamp_gte?: string;
+  timestamp_lte?: string;
+  condition?: string;        // comma-separated
+  acknowledged?: boolean;
+  sms_sent?: boolean;
+  page?: number;
+  page_size?: number;
+  ordering?: string;
+}
+
+export interface PaginatedResponse<T> {
+  count: number;
+  next: string | null;
+  previous: string | null;
+  results: T[];
+}

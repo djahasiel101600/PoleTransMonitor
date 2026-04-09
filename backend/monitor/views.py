@@ -1,3 +1,5 @@
+import csv
+import io
 import logging
 import secrets
 import os
@@ -5,10 +7,13 @@ import time
 
 from rest_framework import viewsets, filters, status
 from rest_framework.decorators import action
+from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import AllowAny, IsAdminUser, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from django_filters.rest_framework import DjangoFilterBackend
+import django_filters
+from django.http import StreamingHttpResponse
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from django.db.models import Max, Min
@@ -26,6 +31,90 @@ from .serializers import (
     SmsRecipientSerializer,
 )
 from .consumers import broadcast_reading
+
+
+# ---------------------------------------------------------------------------
+# Filtersets
+# ---------------------------------------------------------------------------
+
+class ReadingFilter(django_filters.FilterSet):
+    timestamp_gte = django_filters.IsoDateTimeFilter(field_name="timestamp", lookup_expr="gte")
+    timestamp_lte = django_filters.IsoDateTimeFilter(field_name="timestamp", lookup_expr="lte")
+    condition = django_filters.CharFilter(method="filter_condition")
+    voltage_gte = django_filters.NumberFilter(field_name="voltage", lookup_expr="gte")
+    voltage_lte = django_filters.NumberFilter(field_name="voltage", lookup_expr="lte")
+    current_gte = django_filters.NumberFilter(field_name="current", lookup_expr="gte")
+    current_lte = django_filters.NumberFilter(field_name="current", lookup_expr="lte")
+    oil_temp_gte = django_filters.NumberFilter(field_name="oil_temp", lookup_expr="gte")
+    oil_temp_lte = django_filters.NumberFilter(field_name="oil_temp", lookup_expr="lte")
+    power_factor_gte = django_filters.NumberFilter(field_name="power_factor", lookup_expr="gte")
+    power_factor_lte = django_filters.NumberFilter(field_name="power_factor", lookup_expr="lte")
+
+    class Meta:
+        model = Reading
+        fields = ["transformer"]
+
+    def filter_condition(self, queryset, name, value):
+        values = [v.strip() for v in value.split(",") if v.strip()]
+        if values:
+            return queryset.filter(condition__in=values)
+        return queryset
+
+
+class AlertFilter(django_filters.FilterSet):
+    timestamp_gte = django_filters.IsoDateTimeFilter(field_name="timestamp", lookup_expr="gte")
+    timestamp_lte = django_filters.IsoDateTimeFilter(field_name="timestamp", lookup_expr="lte")
+    condition = django_filters.CharFilter(method="filter_condition")
+    acknowledged = django_filters.BooleanFilter(field_name="acknowledged")
+    sms_sent = django_filters.BooleanFilter(field_name="sms_sent")
+
+    class Meta:
+        model = Alert
+        fields = ["transformer"]
+
+    def filter_condition(self, queryset, name, value):
+        values = [v.strip() for v in value.split(",") if v.strip()]
+        if values:
+            return queryset.filter(condition__in=values)
+        return queryset
+
+
+# ---------------------------------------------------------------------------
+# Pagination
+# ---------------------------------------------------------------------------
+
+class ReportsPagination(PageNumberPagination):
+    """Only activates when the client explicitly passes ?page=. Existing
+    endpoints that omit the param keep returning plain arrays."""
+    page_size = 50
+    page_size_query_param = "page_size"
+    max_page_size = 200
+
+    def paginate_queryset(self, queryset, request, view=None):
+        if "page" not in request.query_params:
+            return None
+        return super().paginate_queryset(queryset, request, view)
+
+
+# ---------------------------------------------------------------------------
+# CSV streaming helpers
+# ---------------------------------------------------------------------------
+CSV_EXPORT_MAX_ROWS = 100_000
+
+
+class _Echo:
+    """Pseudo-buffer that returns what it receives (for StreamingHttpResponse)."""
+    def write(self, value):
+        return value
+
+
+def _stream_csv(queryset, header, row_fn):
+    """Yield CSV rows from a queryset using a streaming pseudo-buffer."""
+    pseudo_buffer = _Echo()
+    writer = csv.writer(pseudo_buffer)
+    yield writer.writerow(header)
+    for obj in queryset.iterator(chunk_size=2000):
+        yield writer.writerow(row_fn(obj))
 
 
 def _compute_insights_from_reading(reading, transformer):
@@ -238,9 +327,10 @@ class SmsRecipientViewSet(viewsets.ModelViewSet):
 class ReadingViewSet(viewsets.ModelViewSet):
     queryset = Reading.objects.select_related("transformer").all()
     filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
-    filterset_fields = ["transformer"]
-    ordering_fields = ["timestamp"]
+    filterset_class = ReadingFilter
+    ordering_fields = ["timestamp", "voltage", "current", "oil_temp", "power_factor", "apparent_power"]
     ordering = ["-timestamp"]
+    pagination_class = ReportsPagination
 
     def get_serializer_class(self):
         if self.action == "create":
@@ -301,12 +391,43 @@ class ReadingViewSet(viewsets.ModelViewSet):
                 pass
         return qs
 
+    @action(detail=False, methods=["get"], url_path="export_csv")
+    def export_csv(self, request):
+        """Stream filtered readings as a CSV download."""
+        qs = self.filter_queryset(self.get_queryset())[:CSV_EXPORT_MAX_ROWS]
+        header = [
+            "timestamp", "transformer", "voltage", "current",
+            "apparent_power", "real_power", "power_factor",
+            "frequency", "oil_temp", "energy_kwh", "condition",
+        ]
+
+        def row_fn(r):
+            offset = r.transformer.energy_kwh_offset if r.transformer else 0
+            energy = max((r.energy_kwh or 0) - (offset or 0), 0)
+            return [
+                r.timestamp.isoformat() if r.timestamp else "",
+                r.transformer.name if r.transformer else "",
+                r.voltage, r.current, r.apparent_power, r.real_power,
+                r.power_factor, r.frequency, r.oil_temp,
+                round(energy, 4), r.condition,
+            ]
+
+        response = StreamingHttpResponse(
+            _stream_csv(qs, header, row_fn),
+            content_type="text/csv",
+        )
+        response["Content-Disposition"] = 'attachment; filename="readings_export.csv"'
+        return response
+
 
 class AlertViewSet(viewsets.ModelViewSet):
     queryset = Alert.objects.select_related("transformer").all()
     serializer_class = AlertSerializer
-    filter_backends = [DjangoFilterBackend]
-    filterset_fields = ["transformer"]
+    filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
+    filterset_class = AlertFilter
+    ordering_fields = ["timestamp"]
+    ordering = ["-timestamp"]
+    pagination_class = ReportsPagination
 
     def get_permissions(self):
         # Dashboard alert viewing/ack requires authentication.
@@ -331,6 +452,29 @@ class AlertViewSet(viewsets.ModelViewSet):
             transformer_id=transformer_id, acknowledged=False
         ).update(acknowledged=True)
         return Response({"acknowledged": count})
+
+    @action(detail=False, methods=["get"], url_path="export_csv")
+    def export_csv(self, request):
+        """Stream filtered alerts as a CSV download."""
+        qs = self.filter_queryset(self.get_queryset())[:CSV_EXPORT_MAX_ROWS]
+        header = [
+            "timestamp", "transformer", "condition",
+            "message", "sms_sent", "acknowledged",
+        ]
+
+        def row_fn(a):
+            return [
+                a.timestamp.isoformat() if a.timestamp else "",
+                a.transformer.name if a.transformer else "",
+                a.condition, a.message, a.sms_sent, a.acknowledged,
+            ]
+
+        response = StreamingHttpResponse(
+            _stream_csv(qs, header, row_fn),
+            content_type="text/csv",
+        )
+        response["Content-Disposition"] = 'attachment; filename="alerts_export.csv"'
+        return response
 
 
 class MeView(APIView):

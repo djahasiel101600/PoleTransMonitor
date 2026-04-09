@@ -1,6 +1,5 @@
 import type { Transformer } from "../../types";
 import { Button } from "../ui/Button";
-import { Badge } from "../ui/Badge";
 
 export function TopBar({
   transformers,
@@ -30,15 +29,16 @@ export function TopBar({
   onOpenMobileNav: () => void;
 }) {
   return (
-    <header className="sticky top-0 z-10 border-b border-border/80 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-      <div className="mx-auto flex items-center justify-between gap-3 px-4 py-4 sm:px-6 lg:px-8">
+    <header className="sticky top-0 z-10 border-b border-border/60 bg-background/80 backdrop-blur-xl">
+      <div className="mx-auto flex h-14 items-center justify-between gap-3 px-4 sm:px-6 lg:px-8">
+        {/* Left section */}
         <div className="flex min-w-0 items-center gap-3">
           <Button
             type="button"
             variant="outline"
             size="sm"
             onClick={onOpenMobileNav}
-            className="lg:hidden"
+            className="h-8 w-8 p-0 lg:hidden"
             aria-label="Open main navigation menu"
           >
             <svg
@@ -49,7 +49,7 @@ export function TopBar({
               strokeWidth="1.8"
               strokeLinecap="round"
               strokeLinejoin="round"
-              className="h-5 w-5"
+              className="h-4 w-4"
             >
               <path d="M4 6h16" />
               <path d="M4 12h16" />
@@ -57,19 +57,35 @@ export function TopBar({
             </svg>
           </Button>
 
-          <div className="min-w-0">
-            <h1 className="truncate text-base font-semibold tracking-tight text-foreground">
-              Energy Monitoring Dashboard
-            </h1>
-            <div className="mt-0.5 text-xs text-muted-foreground">
-              {connected ? "Live feed active" : "No live feed"}
-              {selectedTransformer ? ` · ${selectedTransformer.name}` : ""}
-            </div>
+          {/* Connection status */}
+          <div className="flex items-center gap-2">
+            <span
+              className={`flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] font-medium ${
+                connected
+                  ? "bg-primary/10 text-primary"
+                  : "bg-muted text-muted-foreground"
+              }`}
+            >
+              <span
+                className={`h-1.5 w-1.5 rounded-full ${connected ? "bg-primary animate-pulse-dot" : "bg-current opacity-40"}`}
+              />
+              {connected ? "Live" : "Offline"}
+            </span>
           </div>
+
+          {selectedTransformer && (
+            <div className="hidden min-w-0 sm:block">
+              <span className="text-xs text-muted-foreground">
+                {selectedTransformer.rated_kva} kVA @{" "}
+                {selectedTransformer.nominal_voltage}V
+              </span>
+            </div>
+          )}
         </div>
 
-        <div className="flex flex-wrap items-center justify-end gap-2">
-          <div className="flex items-center gap-2">
+        {/* Center: Transformer selector */}
+        <div className="flex flex-1 items-center justify-center">
+          <div className="relative">
             <label className="sr-only" htmlFor="transformer-select">
               Select transformer
             </label>
@@ -79,54 +95,49 @@ export function TopBar({
               onChange={(e) =>
                 onSelectTransformer(Number(e.target.value) || null)
               }
-              className="rounded-md border border-border bg-transparent px-3 py-1.5 text-sm text-foreground outline-none focus:ring-2 focus:ring-primary/30 focus:ring-offset-2"
+              className="h-8 rounded-lg border border-border/80 bg-card px-3 pr-8 text-sm font-medium text-foreground outline-none transition-colors hover:border-primary/30 focus:ring-2 focus:ring-primary/20"
             >
-              <option value="">Select…</option>
+              <option value="">Select transformer...</option>
               {transformers.map((t) => (
                 <option key={t.id} value={t.id}>
                   {t.name}
                   {t.serial ? ` · ${t.serial}` : ""}
-                  {t.phone_number ? ` · ${t.phone_number}` : ""}
                 </option>
               ))}
             </select>
-            {selectedTransformer ? (
-              <span className="hidden whitespace-nowrap text-sm text-muted-foreground sm:inline">
-                {selectedTransformer.rated_kva} kVA
-                {selectedTransformer.nominal_voltage
-                  ? ` @ ${selectedTransformer.nominal_voltage}V`
-                  : ""}
-              </span>
-            ) : null}
           </div>
+        </div>
 
-          <Button
-            type="button"
-            variant={isAdmin ? "default" : "outline"}
-            disabled={!isAdmin}
-            onClick={onAddTransformer}
-            className="h-9"
-          >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              className="h-4 w-4 sm:hidden"
+        {/* Right section */}
+        <div className="flex items-center gap-1.5">
+          {isAdmin && (
+            <Button
+              type="button"
+              size="sm"
+              onClick={onAddTransformer}
+              className="hidden h-8 gap-1.5 text-xs sm:inline-flex"
             >
-              <path d="M12 5v14M5 12h14" />
-            </svg>
-            <span className="hidden sm:inline">Add Transformer</span>
-          </Button>
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="h-3.5 w-3.5"
+              >
+                <path d="M12 5v14M5 12h14" />
+              </svg>
+              Add
+            </Button>
+          )}
 
-          {unacknowledgedCount > 0 ? (
-            <Badge variant="normal" className="hidden sm:inline-flex">
-              {unacknowledgedCount} new
-            </Badge>
-          ) : null}
+          {unacknowledgedCount > 0 && (
+            <span className="hidden rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 sm:inline-flex">
+              {unacknowledgedCount} alert{unacknowledgedCount !== 1 ? "s" : ""}
+            </span>
+          )}
 
           <Button
             type="button"
@@ -135,7 +146,7 @@ export function TopBar({
             aria-label={
               theme === "dark" ? "Switch to light mode" : "Switch to dark mode"
             }
-            className="h-9 w-9 p-0"
+            className="h-8 w-8 p-0"
           >
             {theme === "dark" ? (
               <svg
@@ -143,13 +154,11 @@ export function TopBar({
                 viewBox="0 0 24 24"
                 fill="none"
                 stroke="currentColor"
-                strokeWidth="1.6"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                className="h-5 w-5"
+                strokeWidth="1.5"
+                className="h-4 w-4"
               >
-                <path d="M12 3v2.25m6.364.386l-1.591 1.591M21 12h-2.25m-.386 6.364l-1.591-1.591M12 18.75V21m-4.773-4.227l-1.591 1.591M5.25 12H3m4.227-4.773L5.636 5.636" />
-                <path d="M15.75 12a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0z" />
+                <circle cx="12" cy="12" r="4" />
+                <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41" />
               </svg>
             ) : (
               <svg
@@ -157,40 +166,32 @@ export function TopBar({
                 viewBox="0 0 24 24"
                 fill="none"
                 stroke="currentColor"
-                strokeWidth="1.6"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                className="h-5 w-5"
+                strokeWidth="1.5"
+                className="h-4 w-4"
               >
-                <path d="M21.752 15.002A9.718 9.718 0 0118 15.75c-5.385 0-9.75-4.365-9.75-9.75 0-1.33.266-2.597.748-3.752A9.753 9.753 0 003 11.25C3 16.635 7.365 21 12.75 21a9.753 9.753 0 009.002-5.998z" />
+                <path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z" />
               </svg>
             )}
           </Button>
 
-          <div className="flex items-center gap-3 text-sm text-muted-foreground">
-            <span
-              className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium ${
-                connected
-                  ? "bg-primary/10 text-primary"
-                  : "bg-muted text-muted-foreground"
-              }`}
+          <Button
+            type="button"
+            variant="outline"
+            onClick={onLogout}
+            className="h-8 gap-1.5 px-2.5 text-xs"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              className="h-3.5 w-3.5"
             >
-              <span
-                className={`h-1.5 w-1.5 rounded-full ${connected ? "bg-primary animate-pulse-dot" : "bg-current opacity-50"}`}
-                aria-hidden
-              />
-              {connected ? "Live" : "Offline"}
-            </span>
-
-            <Button
-              type="button"
-              variant="outline"
-              onClick={onLogout}
-              className="h-9"
-            >
-              Logout
-            </Button>
-          </div>
+              <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9" />
+            </svg>
+            <span className="hidden sm:inline">Logout</span>
+          </Button>
         </div>
       </div>
     </header>

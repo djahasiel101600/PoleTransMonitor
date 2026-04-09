@@ -28,6 +28,7 @@ import {
   DialogPortal,
 } from "./ui/Dialog";
 import { MonitoringView } from "./dashboard/MonitoringView";
+import { ReportsView } from "./ReportsView";
 
 export function Dashboard() {
   const [transformers, setTransformers] = useState<Transformer[]>([]);
@@ -234,6 +235,8 @@ export function Dashboard() {
               onSelectTransformer={(id) => setSelectedId(id)}
               error={error}
             />
+          ) : activeTab === "reports" ? (
+            <ReportsView transformerId={selectedId} />
           ) : (
             <div
               role="tabpanel"

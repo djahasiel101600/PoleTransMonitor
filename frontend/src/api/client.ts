@@ -252,3 +252,77 @@ export async function deleteContact(contactId: number) {
   }
   return true;
 }
+
+// ---------------------------------------------------------------------------
+// Reports: filtered & paginated queries + CSV export
+// ---------------------------------------------------------------------------
+
+import type {
+  Reading,
+  Alert,
+  ReadingFilters,
+  AlertFilters,
+  PaginatedResponse,
+} from "../types";
+
+function buildFilterParams(filters: ReadingFilters | AlertFilters): URLSearchParams {
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(filters)) {
+    if (value === undefined || value === null || value === "") continue;
+    params.set(key, String(value));
+  }
+  return params;
+}
+
+export async function fetchFilteredReadings(
+  filters: ReadingFilters,
+): Promise<PaginatedResponse<Reading>> {
+  const params = buildFilterParams(filters);
+  const res = await authFetch(`${API_BASE}/readings/?${params}`, {});
+  if (!res.ok) throw new Error("Failed to fetch filtered readings");
+  return res.json();
+}
+
+export async function fetchFilteredAlerts(
+  filters: AlertFilters,
+): Promise<PaginatedResponse<Alert>> {
+  const params = buildFilterParams(filters);
+  const res = await authFetch(`${API_BASE}/alerts/?${params}`, {});
+  if (!res.ok) throw new Error("Failed to fetch filtered alerts");
+  return res.json();
+}
+
+export async function downloadReadingsCsv(filters: ReadingFilters): Promise<void> {
+  const params = buildFilterParams(filters);
+  // Remove pagination params for full export
+  params.delete("page");
+  params.delete("page_size");
+  const res = await authFetch(`${API_BASE}/readings/export_csv/?${params}`, {});
+  if (!res.ok) throw new Error("Failed to download readings CSV");
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "readings_export.csv";
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+export async function downloadAlertsCsv(filters: AlertFilters): Promise<void> {
+  const params = buildFilterParams(filters);
+  params.delete("page");
+  params.delete("page_size");
+  const res = await authFetch(`${API_BASE}/alerts/export_csv/?${params}`, {});
+  if (!res.ok) throw new Error("Failed to download alerts CSV");
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "alerts_export.csv";
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
