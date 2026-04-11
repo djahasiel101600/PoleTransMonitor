@@ -31,7 +31,11 @@ public:
    * If simPhoneNumber is non-null/non-empty, sends it as X-Sim-Phone header
    * so the backend can auto-fill the transformer's phone_number.
    */
-  bool fetchDeviceConfig(const char *deviceKey, ConfigManager &cm, const char *simPhoneNumber = nullptr);
+  bool fetchDeviceConfig(const char *deviceKey, ConfigManager &cm, const char *simPhoneNumber = nullptr,
+                         bool *pendingEnergyReset = nullptr);
+
+  /** POST ack to clear pending_energy_reset flag on backend after PZEM reset. */
+  bool ackEnergyReset(const char *deviceKey);
 
 private:
   char baseUrl_[128];

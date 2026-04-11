@@ -60,7 +60,8 @@ int BackendClient::postReadingWithStatus(const ReadingPayload &payload)
   return code;
 }
 
-bool BackendClient::fetchDeviceConfig(const char *deviceKey, ConfigManager &cm, const char *simPhoneNumber)
+bool BackendClient::fetchDeviceConfig(const char *deviceKey, ConfigManager &cm, const char *simPhoneNumber,
+                                      bool *pendingEnergyReset)
 {
   if (WiFi.status() != WL_CONNECTED)
     return false;
@@ -157,5 +158,27 @@ bool BackendClient::fetchDeviceConfig(const char *deviceKey, ConfigManager &cm, 
 
   cm.setActive(isActive);
   cm.setCachedProfile(nv, nf, ri, rva);
+
+  if (pendingEnergyReset)
+  {
+    *pendingEnergyReset = doc["pending_energy_reset"] | false;
+  }
+
   return true;
+}
+
+bool BackendClient::ackEnergyReset(const char *deviceKey)
+{
+  if (WiFi.status() != WL_CONNECTED)
+    return false;
+
+  HTTPClient http;
+  char url[192];
+  snprintf(url, sizeof(url), "%s/api/transformers/%d/ack_energy_reset/", baseUrl_, transformerId_);
+  http.begin(url);
+  http.addHeader("X-Device-Key", deviceKey);
+  http.addHeader("Content-Type", "application/json");
+  int code = http.POST("{}");
+  http.end();
+  return code >= 200 && code < 300;
 }

@@ -34,6 +34,9 @@ class Transformer(models.Model):
     # When staff “reset” a transformer, the backend subtracts this offset from
     # stored cumulative `energy_kwh` so the UI starts near 0 after replacement.
     energy_kwh_offset = models.FloatField(default=0.0)
+    # When True, the firmware should reset the PZEM hardware energy counter
+    # on next config sync and then acknowledge back to the backend.
+    pending_energy_reset = models.BooleanField(default=False)
     phone_number = models.CharField(
         max_length=32,
         null=True,

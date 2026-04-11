@@ -1,7 +1,8 @@
 #ifndef PZEM_SENSOR_H
 #define PZEM_SENSOR_H
 
-struct PzemReading {
+struct PzemReading
+{
   float voltage;
   float current;
   float power;
@@ -11,12 +12,14 @@ struct PzemReading {
   bool valid;
 };
 
-class PzemSensor {
- public:
+class PzemSensor
+{
+public:
   void begin(int rxPin = 16, int txPin = 17);
-  bool read(PzemReading& out);
+  bool read(PzemReading &out);
+  bool resetEnergy();
 
- private:
+private:
   bool initialized_ = false;
   int rxPin_;
   int txPin_;

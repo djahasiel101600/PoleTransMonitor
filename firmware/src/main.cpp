@@ -104,11 +104,30 @@ static void syncDeviceProfileFromServer()
 #else
   const char *phone = nullptr;
 #endif
-  if (backendClient.fetchDeviceConfig(configMgr.getDeviceApiKey(), configMgr, phone))
+  bool resetPending = false;
+  if (backendClient.fetchDeviceConfig(configMgr.getDeviceApiKey(), configMgr, phone, &resetPending))
   {
     EvalParams ep;
     configMgr.fillEvalParams(ep);
     evaluator.setParams(ep);
+
+    if (resetPending)
+    {
+      if (pzem.resetEnergy())
+      {
+        backendClient.ackEnergyReset(configMgr.getDeviceApiKey());
+#if DEBUG_SERIAL
+        Serial.println("[DEBUG] PZEM energy counter reset (requested by backend)");
+#endif
+      }
+      else
+      {
+#if DEBUG_SERIAL
+        Serial.println("[DEBUG] PZEM energy reset FAILED");
+#endif
+      }
+    }
+
 #if DEBUG_SERIAL
     Serial.printf("[DEBUG] Device profile synced: Vn=%.1f V Fn=%.1f Hz In=%.1f A Sn=%.0f VA\n",
                   ep.nominalVoltage, ep.nominalFreq, ep.ratedCurrent, ep.ratedApparentPower);

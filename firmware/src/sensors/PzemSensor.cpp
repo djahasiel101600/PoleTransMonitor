@@ -44,3 +44,10 @@ bool PzemSensor::read(PzemReading &out)
   out.valid = !isnan(out.voltage) && out.voltage > 0;
   return out.valid;
 }
+
+bool PzemSensor::resetEnergy()
+{
+  if (!initialized_ || !pzem)
+    return false;
+  return pzem->resetEnergy();
+}

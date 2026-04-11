@@ -170,7 +170,7 @@ class TransformerViewSet(viewsets.ModelViewSet):
 
     def get_permissions(self):
         # The ESP32 device posts readings; we only want admins/staff to manage transformers.
-        if self.action == "device_config":
+        if self.action in ["device_config", "ack_energy_reset"]:
             return [AllowAny()]
         if self.action in ["create", "update", "partial_update", "destroy", "reset"]:
             return [IsAuthenticated(), IsAdminUser()]
@@ -239,6 +239,8 @@ class TransformerViewSet(viewsets.ModelViewSet):
                 "sms_recipients": [
                     r.phone_number for r in transformer.sms_recipients.all()
                 ],
+                # Firmware checks this to reset the PZEM hardware energy counter.
+                "pending_energy_reset": bool(transformer.pending_energy_reset),
             }
         )
 
@@ -304,7 +306,8 @@ class TransformerViewSet(viewsets.ModelViewSet):
                 offset = 0.0
 
             transformer.energy_kwh_offset = offset
-            transformer.save(update_fields=["energy_kwh_offset"])
+            transformer.pending_energy_reset = True
+            transformer.save(update_fields=["energy_kwh_offset", "pending_energy_reset"])
 
             # Clear history so charts/alerts restart cleanly.
             Alert.objects.filter(transformer=transformer).delete()
@@ -316,6 +319,33 @@ class TransformerViewSet(viewsets.ModelViewSet):
                 "energy_kwh_offset": offset,
             }
         )
+
+    @action(detail=True, methods=["post"], url_path="ack_energy_reset")
+    def ack_energy_reset(self, request, pk=None):
+        """
+        Called by firmware after it has successfully reset the PZEM energy counter.
+        Authenticated by X-Device-Key header (same as device_config).
+        """
+        client_key = (
+            request.headers.get("X-Device-Key")
+            or request.headers.get("X-Device-Token")
+            or ""
+        ).strip()
+        if not client_key:
+            return Response(
+                {"detail": "Missing X-Device-Key header."},
+                status=status.HTTP_401_UNAUTHORIZED,
+            )
+        transformer = get_object_or_404(Transformer.objects.all(), pk=pk)
+        server_key = (transformer.device_api_key or "").strip()
+        if not server_key or not secrets.compare_digest(client_key, server_key):
+            return Response(
+                {"detail": "Invalid device key."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        transformer.pending_energy_reset = False
+        transformer.save(update_fields=["pending_energy_reset"])
+        return Response({"ok": True})
 
 
 class SmsRecipientViewSet(viewsets.ModelViewSet):

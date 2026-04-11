@@ -42,7 +42,7 @@
 #define SAMPLE_INTERVAL_MS 5000
 
 // Re-fetch transformer nameplate from server for ThresholdEvaluator (matches dashboard).
-#define DEVICE_CONFIG_REFRESH_MS (15UL * 60UL * 1000UL)
+#define DEVICE_CONFIG_REFRESH_MS (5UL * 60UL * 1000UL)
 
 // Debug output to Serial (set to 0 to disable)
 #define DEBUG_SERIAL 1
