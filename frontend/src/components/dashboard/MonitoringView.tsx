@@ -3,7 +3,13 @@ import type { TransformerInsightsResponse } from "../../api/client";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/Card";
 import { LiveMeters } from "../LiveMeters";
 import { TransformerInsights } from "../TransformerInsights";
-import { ReadingsChart } from "../ReadingsChart";
+import {
+  ApparentPowerChart,
+  RealPowerChart,
+  PowerFactorChart,
+  FrequencyChart,
+  EnergyChart,
+} from "../ReadingsChart";
 import { LoadByHourChart } from "../LoadByHourChart";
 import { LoadHeatmap } from "../LoadHeatmap";
 import { ConditionDonut } from "../ConditionDonut";
@@ -167,13 +173,22 @@ export function MonitoringView({
             Historical trends
           </div>
           <div className="text-xs md:text-sm text-muted-foreground">
-            View voltage/current trends, load patterns, and condition
+            View electrical parameter trends, load patterns, and condition
             distribution over time.
           </div>
         </div>
 
+        <div className="grid gap-4 md:gap-5 grid-cols-1 lg:grid-cols-2">
+          <ApparentPowerChart transformerId={selectedId} />
+          <RealPowerChart transformerId={selectedId} />
+          <PowerFactorChart transformerId={selectedId} />
+          <FrequencyChart transformerId={selectedId} />
+          <div className="lg:col-span-2">
+            <EnergyChart transformerId={selectedId} />
+          </div>
+        </div>
+
         <div className="space-y-4 md:space-y-5">
-          <ReadingsChart transformerId={selectedId} />
           <LoadByHourChart transformerId={selectedId} />
         </div>
 
