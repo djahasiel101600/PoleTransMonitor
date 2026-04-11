@@ -4,6 +4,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "../ui/Card";
 import { LiveMeters } from "../LiveMeters";
 import { TransformerInsights } from "../TransformerInsights";
 import {
+  VoltageChart,
+  CurrentChart,
   ApparentPowerChart,
   RealPowerChart,
   PowerFactorChart,
@@ -179,6 +181,8 @@ export function MonitoringView({
         </div>
 
         <div className="grid gap-4 md:gap-5 grid-cols-1 lg:grid-cols-2">
+          <VoltageChart transformerId={selectedId} />
+          <CurrentChart transformerId={selectedId} />
           <ApparentPowerChart transformerId={selectedId} />
           <RealPowerChart transformerId={selectedId} />
           <PowerFactorChart transformerId={selectedId} />

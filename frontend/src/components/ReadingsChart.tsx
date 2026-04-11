@@ -1,5 +1,39 @@
 import { SingleMetricChart } from "./SingleMetricChart";
 
+export function VoltageChart({
+  transformerId,
+}: {
+  transformerId: number | null;
+}) {
+  return (
+    <SingleMetricChart
+      transformerId={transformerId}
+      title="Voltage"
+      dataKey="voltage"
+      unit="V"
+      color="#0369a1"
+      validRange={{ min: 0, max: 500 }}
+    />
+  );
+}
+
+export function CurrentChart({
+  transformerId,
+}: {
+  transformerId: number | null;
+}) {
+  return (
+    <SingleMetricChart
+      transformerId={transformerId}
+      title="Current"
+      dataKey="current"
+      unit="A"
+      color="#0d9488"
+      validRange={{ min: 0, max: 500 }}
+    />
+  );
+}
+
 export function ApparentPowerChart({
   transformerId,
 }: {
