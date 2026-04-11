@@ -112,8 +112,7 @@ export function SingleMetricChart({
         let value: number | null = null;
         if (isValidNum(raw)) {
           if (validRange) {
-            value =
-              raw >= validRange.min && raw <= validRange.max ? raw : null;
+            value = raw >= validRange.min && raw <= validRange.max ? raw : null;
           } else {
             value = raw;
           }
