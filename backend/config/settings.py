@@ -13,8 +13,8 @@ SECRET_KEY = os.environ.get("SECRET_KEY", "dev-secret-key-change-in-production")
 
 DEBUG = os.environ.get("DEBUG", "True").lower() == "true"
 
-# Heroku sets DYNO when running on the platform (used for production defaults).
-IS_HEROKU = "DYNO" in os.environ
+# Render sets RENDER when running on the platform (used for production defaults).
+IS_RENDER = "RENDER" in os.environ
 
 
 def _split_env_list(key: str, default: str) -> list[str]:
@@ -139,8 +139,8 @@ CORS_ALLOWED_ORIGINS = _split_env_list(
     "http://localhost:5173,http://127.0.0.1:5173,http://192.168.1.6:5173",
 )
 
-# HTTPS behind Heroku / other reverse proxies
-if not DEBUG or IS_HEROKU:
+# HTTPS behind Render / other reverse proxies
+if not DEBUG or IS_RENDER:
     SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 
 if not DEBUG:
