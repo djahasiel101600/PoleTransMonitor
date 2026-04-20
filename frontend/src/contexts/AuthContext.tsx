@@ -7,6 +7,7 @@ export type Me = {
   username: string;
   is_staff: boolean;
   is_superuser: boolean;
+  is_approved: boolean;
 };
 
 type AuthContextValue = {

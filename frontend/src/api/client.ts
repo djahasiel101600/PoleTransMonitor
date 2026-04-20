@@ -326,3 +326,69 @@ export async function downloadAlertsCsv(filters: AlertFilters): Promise<void> {
   a.remove();
   URL.revokeObjectURL(url);
 }
+
+// ---------------------------------------------------------------------------
+// User registration & management
+// ---------------------------------------------------------------------------
+
+export interface RegisterResponse {
+  detail: string;
+  access?: string;
+  refresh?: string;
+}
+
+export async function registerUser(
+  username: string,
+  password: string,
+  password2: string,
+): Promise<RegisterResponse> {
+  const res = await fetch(`${API_BASE}/register/`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ username, password, password2 }),
+  });
+  const data = await res.json();
+  if (!res.ok) {
+    const msg =
+      data?.username?.[0] ??
+      data?.password?.[0] ??
+      data?.password2?.[0] ??
+      data?.non_field_errors?.[0] ??
+      data?.detail ??
+      "Registration failed.";
+    throw new Error(msg);
+  }
+  return data as RegisterResponse;
+}
+
+export interface AppUser {
+  id: number;
+  username: string;
+  is_staff: boolean;
+  is_superuser: boolean;
+  is_approved: boolean;
+  date_joined: string;
+}
+
+export async function fetchUsers(): Promise<AppUser[]> {
+  const res = await authFetch(`${API_BASE}/users/`, {});
+  if (!res.ok) throw new Error("Failed to fetch users");
+  return res.json();
+}
+
+export async function approveUser(id: number): Promise<AppUser> {
+  const res = await authFetch(`${API_BASE}/users/${id}/approve/`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+  });
+  if (!res.ok) throw new Error("Failed to approve user");
+  return res.json();
+}
+
+export async function deleteUser(id: number): Promise<void> {
+  const res = await authFetch(`${API_BASE}/users/${id}/`, { method: "DELETE" });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(text || "Failed to delete user");
+  }
+}

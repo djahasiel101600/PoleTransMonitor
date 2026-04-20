@@ -8,10 +8,12 @@ export function LoginDialog({
   open,
   onClose,
   onLoggedIn,
+  onRegister,
 }: {
   open: boolean;
   onClose: () => void;
   onLoggedIn?: () => void;
+  onRegister?: () => void;
 }) {
   const { login } = useAuth();
   const [username, setUsername] = useState("");
@@ -153,6 +155,19 @@ export function LoginDialog({
               )}
             </Button>
           </form>
+
+          {onRegister && (
+            <p className="mt-4 text-center text-xs text-muted-foreground">
+              Don&apos;t have an account?{" "}
+              <button
+                type="button"
+                onClick={onRegister}
+                className="font-medium text-primary underline-offset-4 hover:underline"
+              >
+                Create one
+              </button>
+            </p>
+          )}
         </div>
 
         <p className="mt-4 text-center text-xs text-muted-foreground">

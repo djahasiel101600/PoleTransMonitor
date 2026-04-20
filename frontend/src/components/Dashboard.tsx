@@ -29,6 +29,8 @@ import {
 } from "./ui/Dialog";
 import { MonitoringView } from "./dashboard/MonitoringView";
 import { ReportsView } from "./ReportsView";
+import { RegisterDialog } from "./RegisterDialog";
+import { UserManagementScreen } from "./UserManagementScreen";
 
 export function Dashboard() {
   const [transformers, setTransformers] = useState<Transformer[]>([]);
@@ -80,10 +82,11 @@ export function Dashboard() {
 
   const [activeTab, setActiveTab] = useState<NavKey>("monitoring");
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const [showRegister, setShowRegister] = useState(false);
 
   useEffect(() => {
-    // Non-admin users cannot access management.
-    if (!isAdmin && activeTab === "management") setActiveTab("monitoring");
+    // Non-admin users cannot access management or users.
+    if (!isAdmin && (activeTab === "management" || activeTab === "users")) setActiveTab("monitoring");
   }, [isAdmin, activeTab]);
 
   const refreshTransformers = async (preferredId?: number) => {
@@ -149,8 +152,22 @@ export function Dashboard() {
   }, [selectedId]);
 
   if (!accessToken) {
-    // Show only the login UI until the user authenticates.
-    return <LoginDialog open={true} onClose={() => {}} />;
+    if (showRegister) {
+      return (
+        <RegisterDialog
+          open={true}
+          onClose={() => setShowRegister(false)}
+          onBackToLogin={() => setShowRegister(false)}
+        />
+      );
+    }
+    return (
+      <LoginDialog
+        open={true}
+        onClose={() => {}}
+        onRegister={() => setShowRegister(true)}
+      />
+    );
   }
 
   if (isAuthenticating) {
@@ -237,6 +254,8 @@ export function Dashboard() {
             />
           ) : activeTab === "reports" ? (
             <ReportsView transformerId={selectedId} />
+          ) : activeTab === "users" ? (
+            <UserManagementScreen />
           ) : (
             <div
               role="tabpanel"

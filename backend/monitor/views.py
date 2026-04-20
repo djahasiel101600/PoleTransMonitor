@@ -20,7 +20,14 @@ from django.db.models import Max, Min
 from django.db import transaction
 from datetime import timedelta
 
-from .models import Transformer, Reading, Alert, SmsRecipient
+from django.contrib.auth.models import User
+from django.contrib.auth.password_validation import validate_password
+from django.core.exceptions import ValidationError as DjangoValidationError
+from rest_framework_simplejwt.exceptions import AuthenticationFailed
+from rest_framework_simplejwt.views import TokenObtainPairView as BaseTokenObtainPairView
+from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
+
+from .models import Transformer, Reading, Alert, SmsRecipient, UserProfile
 
 logger = logging.getLogger(__name__)
 from .serializers import (
@@ -29,8 +36,106 @@ from .serializers import (
     ReadingCreateSerializer,
     AlertSerializer,
     SmsRecipientSerializer,
+    RegisterSerializer,
+    UserSerializer,
 )
 from .consumers import broadcast_reading
+
+
+# ---------------------------------------------------------------------------
+# Registration & user management
+# ---------------------------------------------------------------------------
+
+class RegisterView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        serializer = RegisterSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        username = serializer.validated_data["username"]
+        password = serializer.validated_data["password"]
+
+        # Validate against Django's password policy.
+        try:
+            validate_password(password)
+        except DjangoValidationError as e:
+            return Response({"password": list(e.messages)}, status=status.HTTP_400_BAD_REQUEST)
+
+        with transaction.atomic():
+            is_first_user = not User.objects.exists()
+            if is_first_user:
+                user = User.objects.create_superuser(username=username, password=password, email="")
+            else:
+                user = User.objects.create_user(username=username, password=password, email="")
+            # Signal creates UserProfile; update approval for first user just in case.
+            profile, _ = UserProfile.objects.get_or_create(
+                user=user, defaults={"is_approved": is_first_user}
+            )
+            if is_first_user and not profile.is_approved:
+                profile.is_approved = True
+                profile.save(update_fields=["is_approved"])
+
+        if is_first_user:
+            # Auto-login the first user (admin setup flow).
+            from rest_framework_simplejwt.tokens import RefreshToken
+            refresh = RefreshToken.for_user(user)
+            return Response(
+                {
+                    "detail": "Admin account created. Welcome!",
+                    "access": str(refresh.access_token),
+                    "refresh": str(refresh),
+                },
+                status=status.HTTP_201_CREATED,
+            )
+
+        return Response(
+            {"detail": "Registration successful. Your account is pending admin approval."},
+            status=status.HTTP_201_CREATED,
+        )
+
+
+class _GuardedTokenSerializer(TokenObtainPairSerializer):
+    def validate(self, attrs):
+        data = super().validate(attrs)
+        try:
+            if not self.user.profile.is_approved:
+                raise AuthenticationFailed("Your account is pending admin approval.")
+        except UserProfile.DoesNotExist:
+            raise AuthenticationFailed("Your account is pending admin approval.")
+        return data
+
+
+class GuardedTokenObtainPairView(BaseTokenObtainPairView):
+    serializer_class = _GuardedTokenSerializer
+
+
+class UserViewSet(viewsets.ReadOnlyModelViewSet):
+    queryset = User.objects.select_related("profile").order_by("date_joined")
+    serializer_class = UserSerializer
+    permission_classes = [IsAuthenticated, IsAdminUser]
+
+    @action(detail=True, methods=["patch"], url_path="approve")
+    def approve(self, request, pk=None):
+        user = get_object_or_404(User, pk=pk)
+        profile, _ = UserProfile.objects.get_or_create(user=user)
+        profile.is_approved = True
+        profile.save(update_fields=["is_approved"])
+        return Response(UserSerializer(user).data)
+
+    def destroy(self, request, *args, **kwargs):
+        user = self.get_object()
+        if user == request.user:
+            return Response(
+                {"detail": "You cannot delete your own account."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        user.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+    # Allow DELETE on this ReadOnly viewset
+    http_method_names = ["get", "patch", "delete", "head", "options"]
 
 
 # ---------------------------------------------------------------------------
@@ -512,12 +617,17 @@ class MeView(APIView):
 
     def get(self, request):
         user = request.user
+        try:
+            is_approved = user.profile.is_approved
+        except UserProfile.DoesNotExist:
+            is_approved = False
         return Response(
             {
                 "id": user.id,
                 "username": user.username,
                 "is_staff": user.is_staff,
                 "is_superuser": user.is_superuser,
+                "is_approved": is_approved,
             }
         )
 

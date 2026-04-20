@@ -1,6 +1,9 @@
 import secrets
 
+from django.contrib.auth.models import User
 from django.db import models
+from django.db.models.signals import post_save
+from django.dispatch import receiver
 
 
 class SmsRecipient(models.Model):
@@ -130,3 +133,25 @@ class Alert(models.Model):
 
     def __str__(self):
         return f"{self.transformer.name} - {self.condition} @ {self.timestamp}"
+
+
+class UserProfile(models.Model):
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name="profile")
+    is_approved = models.BooleanField(default=False)
+
+    def __str__(self):
+        return f"Profile({self.user.username}, approved={self.is_approved})"
+
+
+@receiver(post_save, sender=User)
+def create_user_profile(sender, instance, created, **kwargs):
+    if created:
+        UserProfile.objects.get_or_create(
+            user=instance,
+            defaults={"is_approved": instance.is_superuser},
+        )
+    elif hasattr(instance, "profile"):
+        # Keep profile approved in sync when is_superuser is toggled externally.
+        if instance.is_superuser and not instance.profile.is_approved:
+            instance.profile.is_approved = True
+            instance.profile.save(update_fields=["is_approved"])

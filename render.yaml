@@ -16,7 +16,7 @@ services:
     runtime: python
     plan: free
     rootDir: backend
-    buildCommand: pip install -r requirements.txt && python manage.py collectstatic --noinput && python manage.py migrate --noinput
+    buildCommand: pip install -r requirements.txt && python manage.py collectstatic --noinput && python manage.py makemigrations && python manage.py migrate --noinput
     startCommand: daphne -b 0.0.0.0 -p $PORT --ping-interval 20 --ping-timeout 30 --application-close-timeout 10 config.asgi:application
     envVars:
       - key: PYTHON_VERSION

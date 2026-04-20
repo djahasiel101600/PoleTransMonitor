@@ -1,5 +1,6 @@
+from django.contrib.auth.models import User
 from rest_framework import serializers
-from .models import Transformer, Reading, Alert, SmsRecipient
+from .models import Transformer, Reading, Alert, SmsRecipient, UserProfile
 
 
 class TransformerSerializer(serializers.ModelSerializer):
@@ -182,3 +183,34 @@ class AlertSerializer(serializers.ModelSerializer):
             "sms_sent",
             "acknowledged",
         ]
+
+
+class RegisterSerializer(serializers.Serializer):
+    username = serializers.CharField(max_length=150)
+    password = serializers.CharField(write_only=True, min_length=8)
+    password2 = serializers.CharField(write_only=True)
+
+    def validate_username(self, value):
+        if User.objects.filter(username=value).exists():
+            raise serializers.ValidationError("A user with that username already exists.")
+        return value
+
+    def validate(self, data):
+        if data["password"] != data["password2"]:
+            raise serializers.ValidationError({"password2": "Passwords do not match."})
+        return data
+
+
+class UserSerializer(serializers.ModelSerializer):
+    is_approved = serializers.SerializerMethodField()
+
+    class Meta:
+        model = User
+        fields = ["id", "username", "is_staff", "is_superuser", "is_approved", "date_joined"]
+        read_only_fields = ["id", "is_staff", "is_superuser", "date_joined"]
+
+    def get_is_approved(self, obj):
+        try:
+            return obj.profile.is_approved
+        except UserProfile.DoesNotExist:
+            return False
