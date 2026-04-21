@@ -1,5 +1,10 @@
 import { useCallback, useEffect, useState } from "react";
-import { fetchUsers, approveUser, deleteUser, type AppUser } from "../api/client";
+import {
+  fetchUsers,
+  approveUser,
+  deleteUser,
+  type AppUser,
+} from "../api/client";
 import { Button } from "./ui/Button";
 
 export function UserManagementScreen() {
@@ -57,12 +62,19 @@ export function UserManagementScreen() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-lg font-semibold text-foreground">User Management</h2>
+          <h2 className="text-lg font-semibold text-foreground">
+            User Management
+          </h2>
           <p className="text-sm text-muted-foreground">
             Approve or remove users who have registered.
           </p>
         </div>
-        <Button variant="outline" size="sm" onClick={() => void load()} disabled={loading}>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => void load()}
+          disabled={loading}
+        >
           Refresh
         </Button>
       </div>
@@ -77,25 +89,44 @@ export function UserManagementScreen() {
       )}
 
       {loading ? (
-        <div className="py-12 text-center text-sm text-muted-foreground">Loading users…</div>
+        <div className="py-12 text-center text-sm text-muted-foreground">
+          Loading users…
+        </div>
       ) : users.length === 0 ? (
-        <div className="py-12 text-center text-sm text-muted-foreground">No users found.</div>
+        <div className="py-12 text-center text-sm text-muted-foreground">
+          No users found.
+        </div>
       ) : (
         <div className="overflow-hidden rounded-xl border border-border/80 bg-card">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border/60 bg-muted/40">
-                <th className="px-4 py-3 text-left font-medium text-muted-foreground">Username</th>
-                <th className="px-4 py-3 text-left font-medium text-muted-foreground">Role</th>
-                <th className="px-4 py-3 text-left font-medium text-muted-foreground">Status</th>
-                <th className="px-4 py-3 text-left font-medium text-muted-foreground">Joined</th>
-                <th className="px-4 py-3 text-right font-medium text-muted-foreground">Actions</th>
+                <th className="px-4 py-3 text-left font-medium text-muted-foreground">
+                  Username
+                </th>
+                <th className="px-4 py-3 text-left font-medium text-muted-foreground">
+                  Role
+                </th>
+                <th className="px-4 py-3 text-left font-medium text-muted-foreground">
+                  Status
+                </th>
+                <th className="px-4 py-3 text-left font-medium text-muted-foreground">
+                  Joined
+                </th>
+                <th className="px-4 py-3 text-right font-medium text-muted-foreground">
+                  Actions
+                </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border/40">
               {users.map((user) => (
-                <tr key={user.id} className="hover:bg-muted/20 transition-colors">
-                  <td className="px-4 py-3 font-medium text-foreground">{user.username}</td>
+                <tr
+                  key={user.id}
+                  className="hover:bg-muted/20 transition-colors"
+                >
+                  <td className="px-4 py-3 font-medium text-foreground">
+                    {user.username}
+                  </td>
                   <td className="px-4 py-3 text-muted-foreground">
                     {user.is_superuser ? (
                       <span className="inline-flex items-center rounded-full bg-purple-100 px-2 py-0.5 text-xs font-medium text-purple-800 dark:bg-purple-900/30 dark:text-purple-300">
@@ -139,10 +170,11 @@ export function UserManagementScreen() {
                         </Button>
                       )}
                       <Button
-                        variant="destructive"
+                        variant="outline"
                         size="sm"
                         disabled={pendingAction === user.id}
                         onClick={() => setConfirmDelete(user)}
+                        className="border-destructive/40 text-destructive hover:bg-destructive/10"
                       >
                         Delete
                       </Button>
@@ -159,17 +191,25 @@ export function UserManagementScreen() {
       {confirmDelete && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
           <div className="mx-4 w-full max-w-sm rounded-xl border border-border/80 bg-card p-6 shadow-lg">
-            <h3 className="text-base font-semibold text-foreground">Delete user?</h3>
+            <h3 className="text-base font-semibold text-foreground">
+              Delete user?
+            </h3>
             <p className="mt-2 text-sm text-muted-foreground">
               This will permanently remove{" "}
-              <span className="font-medium text-foreground">{confirmDelete.username}</span>. This
-              action cannot be undone.
+              <span className="font-medium text-foreground">
+                {confirmDelete.username}
+              </span>
+              . This action cannot be undone.
             </p>
             <div className="mt-5 flex justify-end gap-3">
               <Button variant="outline" onClick={() => setConfirmDelete(null)}>
                 Cancel
               </Button>
-              <Button variant="destructive" onClick={() => void handleDeleteConfirmed()}>
+              <Button
+                variant="outline"
+                onClick={() => void handleDeleteConfirmed()}
+                className="border-destructive/40 text-destructive hover:bg-destructive/10"
+              >
                 Delete
               </Button>
             </div>

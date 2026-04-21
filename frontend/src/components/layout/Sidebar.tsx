@@ -1,7 +1,13 @@
 import type { ReactNode } from "react";
 import { Badge } from "../ui/Badge";
+import type { Me } from "../../contexts/AuthContext";
 
-export type NavKey = "monitoring" | "management" | "reports" | "users";
+export type NavKey =
+  | "monitoring"
+  | "alerts"
+  | "reports"
+  | "management"
+  | "users";
 
 function NavIcon({ children }: { children: ReactNode }) {
   return (
@@ -16,12 +22,18 @@ export function Sidebar({
   isAdmin,
   unacknowledgedCount,
   onNavigate,
+  me,
+  onLogout,
 }: {
   active: NavKey;
   isAdmin: boolean;
   unacknowledgedCount: number;
   onNavigate: (key: NavKey) => void;
+  me: Me | null;
+  onLogout: () => void;
 }) {
+  const initials = me?.username ? me.username.slice(0, 2).toUpperCase() : "?";
+
   return (
     <nav className="flex h-full flex-col gap-1 p-3">
       {/* Branding */}
@@ -72,9 +84,29 @@ export function Sidebar({
             <path d="M7 14l3-3 3 2 4-5" />
           </svg>
         }
+      />
+
+      <NavButton
+        active={active === "alerts"}
+        onClick={() => onNavigate("alerts")}
+        label="Alerts"
+        icon={
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.6"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+            <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+          </svg>
+        }
         trailing={
           unacknowledgedCount > 0 ? (
-            <Badge variant="normal">{unacknowledgedCount}</Badge>
+            <Badge variant="warning">{unacknowledgedCount}</Badge>
           ) : null
         }
       />
@@ -152,10 +184,40 @@ export function Sidebar({
         }
       />
 
-      <div className="mt-auto rounded-lg border border-border/60 bg-muted/30 px-3 py-2.5">
-        <p className="text-[11px] text-muted-foreground">
-          Select a transformer from the header dropdown to begin monitoring.
-        </p>
+      {/* User profile widget */}
+      <div className="mt-auto border-t border-border/60 pt-3">
+        <div className="flex items-center gap-2.5 rounded-lg px-2 py-2">
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">
+            {initials}
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-sm font-medium text-foreground">
+              {me?.username ?? "—"}
+            </p>
+            <p className="text-[11px] text-muted-foreground">
+              {me?.is_superuser ? "Superuser" : me?.is_staff ? "Admin" : "User"}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onLogout}
+            aria-label="Log out"
+            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.6"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="h-4 w-4"
+            >
+              <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9" />
+            </svg>
+          </button>
+        </div>
       </div>
     </nav>
   );

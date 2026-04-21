@@ -112,16 +112,24 @@ export function RegisterDialog({ open, onClose, onBackToLogin }: Props) {
                   <line x1="12" y1="16" x2="12.01" y2="16" />
                 </svg>
               </div>
-              <p className="text-sm font-medium text-foreground">Account pending approval</p>
+              <p className="text-sm font-medium text-foreground">
+                Account pending approval
+              </p>
               <p className="text-xs text-muted-foreground">{pendingMessage}</p>
-              <Button variant="outline" className="w-full" onClick={onBackToLogin}>
+              <Button
+                variant="outline"
+                className="w-full"
+                onClick={onBackToLogin}
+              >
                 Back to sign in
               </Button>
             </div>
           ) : (
             <>
               <div className="mb-5">
-                <h2 className="text-base font-semibold text-foreground">Create account</h2>
+                <h2 className="text-base font-semibold text-foreground">
+                  Create account
+                </h2>
                 <p className="mt-1 text-xs text-muted-foreground">
                   Fill in the details below to register
                 </p>
@@ -174,14 +182,33 @@ export function RegisterDialog({ open, onClose, onBackToLogin }: Props) {
 
                 <Button
                   type="submit"
-                  disabled={submitting || username.trim().length === 0 || password.length === 0}
+                  disabled={
+                    submitting ||
+                    username.trim().length === 0 ||
+                    password.length === 0
+                  }
                   className="w-full"
                 >
                   {submitting ? (
                     <span className="flex items-center gap-2">
-                      <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                      <svg
+                        className="h-4 w-4 animate-spin"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                      >
+                        <circle
+                          className="opacity-25"
+                          cx="12"
+                          cy="12"
+                          r="10"
+                          stroke="currentColor"
+                          strokeWidth="4"
+                        />
+                        <path
+                          className="opacity-75"
+                          fill="currentColor"
+                          d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+                        />
                       </svg>
                       Creating account...
                     </span>

@@ -5,7 +5,6 @@ import {
   fetchAlerts,
   fetchTransformerInsights,
 } from "../api/client";
-import { Card, CardContent, CardHeader, CardTitle } from "./ui/Card";
 import { AlertsList } from "./AlertsList";
 import { useMonitorWebSocket } from "../hooks/useMonitorWebSocket";
 import { useAuth } from "../contexts/AuthContext";
@@ -21,16 +20,19 @@ import { TransformerManagementList } from "./TransformerManagementList";
 import { ContactsScreen } from "./ContactsScreen";
 import { Sidebar, type NavKey } from "./layout/Sidebar";
 import { TopBar } from "./layout/TopBar";
+import { PageHeader } from "./layout/PageHeader";
 import {
   Dialog,
   DialogContent,
   DialogOverlay,
   DialogPortal,
 } from "./ui/Dialog";
+import { Toaster } from "./ui/Toaster";
 import { MonitoringView } from "./dashboard/MonitoringView";
 import { ReportsView } from "./ReportsView";
 import { RegisterDialog } from "./RegisterDialog";
 import { UserManagementScreen } from "./UserManagementScreen";
+import { useToast } from "../hooks/useToast";
 
 export function Dashboard() {
   const [transformers, setTransformers] = useState<Transformer[]>([]);
@@ -63,9 +65,9 @@ export function Dashboard() {
   const unacknowledgedCount = alerts.filter((a) => !a.acknowledged).length;
   const [showAddTransformer, setShowAddTransformer] = useState(false);
   const [transformerQuery, setTransformerQuery] = useState("");
-  const [showTransformerManagement, setShowTransformerManagement] =
-    useState(true);
-  const [showContactsScreen, setShowContactsScreen] = useState(false);
+  const [managementTab, setManagementTab] = useState<
+    "transformers" | "contacts"
+  >("transformers");
 
   const [editTransformer, setEditTransformer] = useState<Transformer | null>(
     null,
@@ -83,10 +85,12 @@ export function Dashboard() {
   const [activeTab, setActiveTab] = useState<NavKey>("monitoring");
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [showRegister, setShowRegister] = useState(false);
+  const { toasts, toast, dismiss } = useToast();
 
   useEffect(() => {
     // Non-admin users cannot access management or users.
-    if (!isAdmin && (activeTab === "management" || activeTab === "users")) setActiveTab("monitoring");
+    if (!isAdmin && (activeTab === "management" || activeTab === "users"))
+      setActiveTab("monitoring");
   }, [isAdmin, activeTab]);
 
   const refreshTransformers = async (preferredId?: number) => {
@@ -203,6 +207,7 @@ export function Dashboard() {
         onToggleTheme={toggleTheme}
         unacknowledgedCount={unacknowledgedCount}
         onOpenMobileNav={() => setMobileNavOpen(true)}
+        onOpenAlerts={() => setActiveTab("alerts")}
       />
 
       <Dialog open={mobileNavOpen} onOpenChange={setMobileNavOpen}>
@@ -213,6 +218,8 @@ export function Dashboard() {
               active={activeTab}
               isAdmin={isAdmin}
               unacknowledgedCount={unacknowledgedCount}
+              me={me}
+              onLogout={logout}
               onNavigate={(key) => {
                 setActiveTab(key);
                 setMobileNavOpen(false);
@@ -232,12 +239,14 @@ export function Dashboard() {
               active={activeTab}
               isAdmin={isAdmin}
               unacknowledgedCount={unacknowledgedCount}
+              me={me}
+              onLogout={logout}
               onNavigate={(key) => setActiveTab(key)}
             />
           </div>
         </aside>
 
-        <div className="@container min-w-0 flex-1 space-y-8">
+        <div className="@container min-w-0 flex-1 space-y-6">
           {activeTab === "monitoring" ? (
             <MonitoringView
               transformers={transformers}
@@ -252,68 +261,113 @@ export function Dashboard() {
               onSelectTransformer={(id) => setSelectedId(id)}
               error={error}
             />
+          ) : activeTab === "alerts" ? (
+            <div>
+              <PageHeader
+                title="Alerts"
+                subtitle={
+                  unacknowledgedCount > 0
+                    ? `${unacknowledgedCount} unacknowledged`
+                    : "All caught up"
+                }
+              />
+              <AlertsList
+                alerts={alerts}
+                setAlerts={setAlerts}
+                loading={uiLoading}
+                transformerId={selectedId}
+              />
+            </div>
           ) : activeTab === "reports" ? (
-            <ReportsView transformerId={selectedId} />
+            <div>
+              <PageHeader
+                title="Reports"
+                subtitle="Historical data and export"
+              />
+              <ReportsView transformerId={selectedId} />
+            </div>
           ) : activeTab === "users" ? (
-            <UserManagementScreen />
+            <div>
+              <PageHeader
+                title="Users"
+                subtitle="Manage user access and approvals"
+              />
+              <UserManagementScreen />
+            </div>
           ) : (
+            /* management tab */
             <div
               role="tabpanel"
               id="tabpanel-management"
               aria-labelledby="tab-management"
             >
-              {isAdmin && showTransformerManagement && (
-                <Card className="border-border/80 shadow-none">
-                  <CardHeader className="flex flex-row items-center justify-between gap-4">
-                    <div className="space-y-0.5">
-                      <CardTitle className="text-base font-semibold">
-                        Transformer Management
-                      </CardTitle>
-                      <div className="text-xs text-muted-foreground">
-                        CRUD operations (admin only)
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={() => {
-                          setShowContactsScreen(true);
-                          setShowTransformerManagement(false);
-                        }}
+              <PageHeader
+                title="Management"
+                subtitle="Transformer configuration and contacts"
+                action={
+                  isAdmin && managementTab === "transformers" ? (
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={() => setShowAddTransformer(true)}
+                    >
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        className="mr-1.5 h-3.5 w-3.5"
                       >
-                        Contacts
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setShowTransformerManagement(false)}
-                      >
-                        Collapse
-                      </Button>
-                    </div>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="flex flex-col gap-3">
-                      <div className="flex items-center gap-3">
-                        <input
-                          className="w-full rounded-md border border-border/80 bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary/20"
-                          value={transformerQuery}
-                          onChange={(e) => setTransformerQuery(e.target.value)}
-                          placeholder="Search by name, serial, phone, or site..."
-                          aria-label="Search transformers"
-                        />
-                        <Button
-                          type="button"
-                          size="sm"
-                          onClick={() => setShowAddTransformer(true)}
-                        >
-                          Add
-                        </Button>
-                      </div>
+                        <path d="M12 5v14M5 12h14" />
+                      </svg>
+                      Add Transformer
+                    </Button>
+                  ) : null
+                }
+              />
 
+              {isAdmin ? (
+                <>
+                  {/* Sub-tab pill bar */}
+                  <div className="mb-4 flex gap-1 rounded-lg border border-border/60 bg-muted/30 p-1 w-fit">
+                    <button
+                      type="button"
+                      onClick={() => setManagementTab("transformers")}
+                      className={[
+                        "rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
+                        managementTab === "transformers"
+                          ? "bg-background text-foreground shadow-sm"
+                          : "text-muted-foreground hover:text-foreground",
+                      ].join(" ")}
+                    >
+                      Transformers
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setManagementTab("contacts")}
+                      className={[
+                        "rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
+                        managementTab === "contacts"
+                          ? "bg-background text-foreground shadow-sm"
+                          : "text-muted-foreground hover:text-foreground",
+                      ].join(" ")}
+                    >
+                      Contacts
+                    </button>
+                  </div>
+
+                  {managementTab === "transformers" && (
+                    <div className="flex flex-col gap-3">
+                      <input
+                        className="w-full rounded-md border border-border/80 bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary/20"
+                        value={transformerQuery}
+                        onChange={(e) => setTransformerQuery(e.target.value)}
+                        placeholder="Search by name, serial, phone, or site..."
+                        aria-label="Search transformers"
+                      />
                       <TransformerManagementList
                         transformers={transformers}
                         selectedId={selectedId}
@@ -333,73 +387,19 @@ export function Dashboard() {
                         }}
                       />
                     </div>
-                  </CardContent>
-                </Card>
-              )}
+                  )}
 
-              {isAdmin && showContactsScreen && (
-                <div>
-                  <ContactsScreen />
-                  <div className="pt-2">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={() => {
-                        setShowContactsScreen(false);
-                        setShowTransformerManagement(true);
-                      }}
-                    >
-                      Back to Transformer Management
-                    </Button>
-                  </div>
-                </div>
-              )}
-
-              {isAdmin && !showTransformerManagement && (
-                <div className="pt-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => setShowTransformerManagement(true)}
-                  >
-                    Manage Transformers
-                  </Button>
-                </div>
-              )}
-
-              {!isAdmin && (
-                <div className="text-sm text-muted-foreground">
-                  Transformer Management is locked. Ask an admin to enable
-                  access.
-                </div>
+                  {managementTab === "contacts" && <ContactsScreen />}
+                </>
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  Management is restricted to admins.
+                </p>
               )}
             </div>
           )}
         </div>
-
-        <aside
-          className="hidden w-full shrink-0 lg:block lg:w-80 xl:w-96"
-          aria-label="Alerts"
-        >
-          <div className="sticky top-[4.25rem] max-h-[calc(100vh-4.25rem)] overflow-y-auto">
-            <AlertsList
-              alerts={alerts}
-              setAlerts={setAlerts}
-              loading={uiLoading}
-              transformerId={selectedId}
-            />
-          </div>
-        </aside>
       </main>
-
-      <div className="border-t border-border/80 px-4 py-4 lg:hidden">
-        <AlertsList
-          alerts={alerts}
-          setAlerts={setAlerts}
-          loading={uiLoading}
-          transformerId={selectedId}
-        />
-      </div>
 
       {isAdmin && (
         <AddTransformerDialog
@@ -407,6 +407,7 @@ export function Dashboard() {
           onClose={() => setShowAddTransformer(false)}
           onCreated={(t) => {
             void refreshTransformers(t.id);
+            toast("Transformer added successfully.", "success");
           }}
         />
       )}
@@ -421,6 +422,7 @@ export function Dashboard() {
           transformer={editTransformer}
           onUpdated={(t) => {
             void refreshTransformers(t.id);
+            toast("Transformer updated.", "success");
           }}
         />
       )}
@@ -435,6 +437,7 @@ export function Dashboard() {
           transformer={deleteTransformer}
           onDeleted={() => {
             void refreshTransformers();
+            toast("Transformer deleted.", "info");
           }}
         />
       )}
@@ -468,6 +471,7 @@ export function Dashboard() {
           }}
         />
       )}
+      <Toaster toasts={toasts} onDismiss={dismiss} />
     </div>
   );
 }

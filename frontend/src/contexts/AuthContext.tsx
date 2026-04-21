@@ -1,5 +1,12 @@
 /* eslint react-refresh/only-export-components: off */
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import React, {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 import { API_BASE, authFetch, registerAuthFailureHandler } from "../api/client";
 
 export type Me = {
@@ -31,8 +38,12 @@ function getStoredToken(key: string): string | null {
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [accessToken, setAccessToken] = useState<string | null>(() => getStoredToken("accessToken"));
-  const [refreshToken, setRefreshToken] = useState<string | null>(() => getStoredToken("refreshToken"));
+  const [accessToken, setAccessToken] = useState<string | null>(() =>
+    getStoredToken("accessToken"),
+  );
+  const [refreshToken, setRefreshToken] = useState<string | null>(() =>
+    getStoredToken("refreshToken"),
+  );
   const [me, setMe] = useState<Me | null>(null);
 
   const isAdmin = !!me && (me.is_staff || me.is_superuser);
@@ -61,7 +72,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (ce.detail?.access) setAccessToken(ce.detail.access);
     };
     window.addEventListener("poletrans:access-token", onAccessRefreshed);
-    return () => window.removeEventListener("poletrans:access-token", onAccessRefreshed);
+    return () =>
+      window.removeEventListener("poletrans:access-token", onAccessRefreshed);
   }, []);
 
   const refreshMe = useCallback(async () => {
@@ -110,8 +122,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const value = useMemo<AuthContextValue>(
-    () => ({ accessToken, refreshToken, me, isAdmin, login, logout, refreshMe }),
-    [accessToken, refreshToken, me, isAdmin, refreshMe, logout]
+    () => ({
+      accessToken,
+      refreshToken,
+      me,
+      isAdmin,
+      login,
+      logout,
+      refreshMe,
+    }),
+    [accessToken, refreshToken, me, isAdmin, refreshMe, logout],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
