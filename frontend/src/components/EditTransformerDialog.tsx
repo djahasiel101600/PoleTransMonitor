@@ -38,6 +38,7 @@ export function EditTransformerDialog({
   const [nominalFreq, setNominalFreq] = useState<number>(60);
   const [ratedKva, setRatedKva] = useState<number>(15);
   const [ratedCurrent, setRatedCurrent] = useState<number>(68);
+  const [readingIntervalMinutes, setReadingIntervalMinutes] = useState<number>(0);
   const [site, setSite] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
   const [isActive, setIsActive] = useState<boolean>(true);
@@ -59,6 +60,7 @@ export function EditTransformerDialog({
     setNominalFreq(transformer.nominal_freq ?? 60);
     setRatedKva(transformer.rated_kva ?? 15);
     setRatedCurrent(transformer.rated_current ?? 68);
+    setReadingIntervalMinutes(transformer.reading_interval_minutes ?? 0);
     setSite(transformer.site ?? "");
     setPhoneNumber(transformer.phone_number ?? "");
     setIsActive(transformer.is_active ?? true);
@@ -93,6 +95,7 @@ export function EditTransformerDialog({
         nominal_freq: Number(nominalFreq),
         rated_kva: Number(ratedKva),
         rated_current: Number(ratedCurrent),
+        reading_interval_minutes: Math.max(0, Number(readingIntervalMinutes)),
         site: site.trim().length ? site.trim() : null,
         phone_number: phoneNumber.trim().length ? phoneNumber.trim() : null,
         is_active: isActive,
@@ -316,6 +319,27 @@ export function EditTransformerDialog({
                       value={ratedCurrent}
                       onChange={(e) => setRatedCurrent(Number(e.target.value))}
                     />
+                  </div>
+                  <div className="space-y-1 sm:col-span-2">
+                    <label className="text-sm font-medium text-foreground">
+                      Reading save interval (minutes)
+                    </label>
+                    <input
+                      type="number"
+                      min={0}
+                      step={1}
+                      className="w-full rounded-md border border-border/80 bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary/20"
+                      value={readingIntervalMinutes}
+                      onChange={(e) =>
+                        setReadingIntervalMinutes(
+                          Math.max(0, Number(e.target.value) || 0),
+                        )
+                      }
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      0 saves every incoming reading. Example: 15 aggregates
+                      readings and stores one averaged row every 15 minutes.
+                    </p>
                   </div>
                 </div>
 

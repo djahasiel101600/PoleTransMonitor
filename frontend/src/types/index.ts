@@ -7,6 +7,7 @@ export interface Transformer {
   rated_kva: number;
   rated_current: number;
   site: string | null;
+  reading_interval_minutes: number;
   /** Whether the ESP32 device is allowed to send readings */
   is_active: boolean;
   /** Staff-only list of SMS recipients assigned to this transformer */
@@ -42,7 +43,6 @@ export interface Reading {
   real_power: number | null;
   power_factor: number | null;
   frequency: number | null;
-  oil_temp: number | null;
   energy_kwh: number | null;
   condition: Condition;
 }
@@ -82,8 +82,6 @@ export interface ReadingFilters {
   voltage_lte?: number;
   current_gte?: number;
   current_lte?: number;
-  oil_temp_gte?: number;
-  oil_temp_lte?: number;
   power_factor_gte?: number;
   power_factor_lte?: number;
   page?: number;

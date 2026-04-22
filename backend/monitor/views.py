@@ -27,7 +27,14 @@ from rest_framework_simplejwt.exceptions import AuthenticationFailed
 from rest_framework_simplejwt.views import TokenObtainPairView as BaseTokenObtainPairView
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 
-from .models import Transformer, Reading, Alert, SmsRecipient, UserProfile
+from .models import (
+    Transformer,
+    Reading,
+    ReadingBuffer,
+    Alert,
+    SmsRecipient,
+    UserProfile,
+)
 
 logger = logging.getLogger(__name__)
 from .serializers import (
@@ -39,7 +46,7 @@ from .serializers import (
     RegisterSerializer,
     UserSerializer,
 )
-from .consumers import broadcast_reading
+from .consumers import broadcast_live_reading, broadcast_reading
 
 
 # ---------------------------------------------------------------------------
@@ -205,6 +212,17 @@ class ReportsPagination(PageNumberPagination):
 # CSV streaming helpers
 # ---------------------------------------------------------------------------
 CSV_EXPORT_MAX_ROWS = 100_000
+CONDITION_SEVERITY = {
+    "normal": 0,
+    "heavy_load": 1,
+    "heavy_peak_load": 2,
+    "poor_power_quality": 3,
+    "abnormal": 4,
+    "danger_zone": 5,
+    "overload": 6,
+    "severe_overload": 7,
+    "critical": 8,
+}
 
 
 class _Echo:
@@ -220,6 +238,60 @@ def _stream_csv(queryset, header, row_fn):
     yield writer.writerow(header)
     for obj in queryset.iterator(chunk_size=2000):
         yield writer.writerow(row_fn(obj))
+
+
+def _window_start(now, interval_minutes):
+    return now - timedelta(
+        minutes=now.minute % interval_minutes,
+        seconds=now.second,
+        microseconds=now.microsecond,
+    )
+
+
+def _average(rows, attr):
+    vals = [getattr(r, attr) for r in rows if getattr(r, attr) is not None]
+    if not vals:
+        return None
+    return sum(vals) / len(vals)
+
+
+def _most_severe_condition(rows):
+    conditions = [r.condition for r in rows if r.condition]
+    if not conditions:
+        return "normal"
+    return max(conditions, key=lambda c: CONDITION_SEVERITY.get(c, 0))
+
+
+def _flush_buffer_if_due(transformer, now):
+    interval = int(getattr(transformer, "reading_interval_minutes", 0) or 0)
+    if interval <= 0:
+        return None
+
+    window_start = _window_start(now, interval)
+    stale_qs = ReadingBuffer.objects.filter(
+        transformer=transformer,
+        timestamp__lt=window_start,
+    ).order_by("timestamp")
+
+    rows = list(stale_qs)
+    if not rows:
+        return None
+
+    latest = rows[-1]
+    reading = Reading.objects.create(
+        transformer=transformer,
+        voltage=_average(rows, "voltage"),
+        current=_average(rows, "current"),
+        apparent_power=_average(rows, "apparent_power"),
+        real_power=_average(rows, "real_power"),
+        power_factor=_average(rows, "power_factor"),
+        frequency=_average(rows, "frequency"),
+        oil_temp=_average(rows, "oil_temp"),
+        energy_kwh=latest.energy_kwh,
+        condition=_most_severe_condition(rows),
+    )
+    stale_qs.delete()
+    return reading
 
 
 def _compute_insights_from_reading(reading, transformer):
@@ -496,23 +568,69 @@ class ReadingViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_403_FORBIDDEN,
             )
 
-        reading = serializer.save()
+        now = timezone.now()
+        payload_data = {
+            "voltage": serializer.validated_data.get("voltage"),
+            "current": serializer.validated_data.get("current"),
+            "apparent_power": serializer.validated_data.get("apparent_power"),
+            "real_power": serializer.validated_data.get("real_power"),
+            "power_factor": serializer.validated_data.get("power_factor"),
+            "frequency": serializer.validated_data.get("frequency"),
+            "oil_temp": serializer.validated_data.get("oil_temp"),
+            "energy_kwh": serializer.validated_data.get("energy_kwh"),
+            "condition": serializer.validated_data.get("condition", "normal"),
+        }
+
+        interval = int(getattr(transformer, "reading_interval_minutes", 0) or 0)
+        if interval <= 0:
+            reading = serializer.save()
+            Transformer.objects.filter(pk=transformer.id).update(last_seen=timezone.now())
+            if reading.condition != "normal":
+                Alert.objects.create(
+                    transformer=transformer,
+                    condition=reading.condition,
+                    message=f"Condition: {reading.condition}",
+                    sms_sent=request.data.get("sms_sent", False),
+                )
+            broadcast_reading(reading)
+            return Response(ReadingSerializer(reading).data, status=status.HTTP_201_CREATED)
+
+        # Keep dashboard latency low even when DB writes are interval-aggregated.
+        broadcast_live_reading(transformer, payload_data, now)
 
         # Update last_seen so the dashboard knows the device is alive.
-        Transformer.objects.filter(pk=reading.transformer_id).update(
-            last_seen=timezone.now()
-        )
+        Transformer.objects.filter(pk=transformer.id).update(last_seen=now)
 
-        if reading.condition != "normal":
+        if payload_data["condition"] != "normal":
             Alert.objects.create(
-                transformer=reading.transformer,
-                condition=reading.condition,
-                message=f"Condition: {reading.condition}",
+                transformer=transformer,
+                condition=payload_data["condition"],
+                message=f"Condition: {payload_data['condition']}",
                 sms_sent=request.data.get("sms_sent", False),
             )
-        broadcast_reading(reading)
+
+        with transaction.atomic():
+            ReadingBuffer.objects.create(
+                transformer=transformer,
+                voltage=payload_data["voltage"],
+                current=payload_data["current"],
+                apparent_power=payload_data["apparent_power"],
+                real_power=payload_data["real_power"],
+                power_factor=payload_data["power_factor"],
+                frequency=payload_data["frequency"],
+                oil_temp=payload_data["oil_temp"],
+                energy_kwh=payload_data["energy_kwh"],
+                condition=payload_data["condition"],
+            )
+            _flush_buffer_if_due(transformer, now)
+
         return Response(
-            ReadingSerializer(reading).data, status=status.HTTP_201_CREATED
+            {
+                "transformer": transformer.id,
+                "timestamp": now.isoformat(),
+                **payload_data,
+            },
+            status=status.HTTP_201_CREATED,
         )
 
     def get_queryset(self):

@@ -59,6 +59,8 @@ class Transformer(models.Model):
     device_api_key = models.CharField(max_length=64, blank=True, default="")
     # Automatically updated every time the device POSTs a reading.
     last_seen = models.DateTimeField(null=True, blank=True)
+    # 0 means every reading is saved; values > 0 enable interval aggregation.
+    reading_interval_minutes = models.PositiveIntegerField(default=0)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -116,6 +118,32 @@ class Reading(models.Model):
 
     def __str__(self):
         return f"{self.transformer.name} @ {self.timestamp}"
+
+
+class ReadingBuffer(models.Model):
+    """Temporary high-frequency readings used for interval aggregation."""
+
+    transformer = models.ForeignKey(
+        Transformer, on_delete=models.CASCADE, related_name="reading_buffer"
+    )
+    timestamp = models.DateTimeField(auto_now_add=True)
+    voltage = models.FloatField(null=True, blank=True)
+    current = models.FloatField(null=True, blank=True)
+    apparent_power = models.FloatField(null=True, blank=True)
+    real_power = models.FloatField(null=True, blank=True)
+    power_factor = models.FloatField(null=True, blank=True)
+    frequency = models.FloatField(null=True, blank=True)
+    oil_temp = models.FloatField(null=True, blank=True)
+    energy_kwh = models.FloatField(null=True, blank=True)
+    condition = models.CharField(
+        max_length=30, choices=CONDITION_CHOICES, default="normal"
+    )
+
+    class Meta:
+        ordering = ["timestamp"]
+
+    def __str__(self):
+        return f"Buffered {self.transformer.name} @ {self.timestamp}"
 
 
 class Alert(models.Model):

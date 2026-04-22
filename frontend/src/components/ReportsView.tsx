@@ -39,8 +39,6 @@ function filtersToReadingParams(
   if (f.voltageMax) p.voltage_lte = Number(f.voltageMax);
   if (f.currentMin) p.current_gte = Number(f.currentMin);
   if (f.currentMax) p.current_lte = Number(f.currentMax);
-  if (f.oilTempMin) p.oil_temp_gte = Number(f.oilTempMin);
-  if (f.oilTempMax) p.oil_temp_lte = Number(f.oilTempMax);
   if (f.pfMin) p.power_factor_gte = Number(f.pfMin);
   if (f.pfMax) p.power_factor_lte = Number(f.pfMax);
   return p;

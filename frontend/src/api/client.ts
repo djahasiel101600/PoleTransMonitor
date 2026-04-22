@@ -157,6 +157,7 @@ export type CreateTransformerPayload = {
   nominal_freq?: number;
   rated_kva?: number;
   rated_current?: number;
+  reading_interval_minutes?: number;
   site?: string | null;
   phone_number?: string | null;
   is_active?: boolean;

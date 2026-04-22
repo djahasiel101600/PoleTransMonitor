@@ -28,6 +28,7 @@ class TransformerSerializer(serializers.ModelSerializer):
             "site",
             "phone_number",
             "is_active",
+            "reading_interval_minutes",
             "sms_recipients",
             "sms_recipients_ids",
             "device_api_key",

@@ -39,6 +39,7 @@ export function AddTransformerDialog({
   const [nominalFreq, setNominalFreq] = useState<number>(60);
   const [ratedKva, setRatedKva] = useState<number>(15);
   const [ratedCurrent, setRatedCurrent] = useState<number>(68);
+  const [readingIntervalMinutes, setReadingIntervalMinutes] = useState<number>(0);
   const [site, setSite] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
 
@@ -54,6 +55,7 @@ export function AddTransformerDialog({
     setNominalFreq(60);
     setRatedKva(15);
     setRatedCurrent(68);
+    setReadingIntervalMinutes(0);
     setSite("");
     setPhoneNumber("");
   }, [open]);
@@ -93,6 +95,7 @@ export function AddTransformerDialog({
         nominal_freq: Number(nominalFreq),
         rated_kva: Number(ratedKva),
         rated_current: Number(ratedCurrent),
+        reading_interval_minutes: Math.max(0, Number(readingIntervalMinutes)),
         site: site.trim().length ? site.trim() : null,
         phone_number: phoneNumber.trim().length ? phoneNumber.trim() : null,
       };
@@ -279,6 +282,27 @@ export function AddTransformerDialog({
                             setRatedCurrent(Number(e.target.value))
                           }
                         />
+                      </div>
+                      <div className="space-y-1 sm:col-span-2">
+                        <Label htmlFor="add-transformer-reading-interval">
+                          Reading save interval (minutes)
+                        </Label>
+                        <Input
+                          id="add-transformer-reading-interval"
+                          type="number"
+                          min={0}
+                          step={1}
+                          value={readingIntervalMinutes}
+                          onChange={(e) =>
+                            setReadingIntervalMinutes(
+                              Math.max(0, Number(e.target.value) || 0),
+                            )
+                          }
+                        />
+                        <p className="text-xs text-muted-foreground">
+                          0 saves every incoming reading. Example: 15 aggregates
+                          readings and stores one averaged row every 15 minutes.
+                        </p>
                       </div>
                     </div>
 

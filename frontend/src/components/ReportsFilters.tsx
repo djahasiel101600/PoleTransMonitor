@@ -31,8 +31,6 @@ export interface FilterValues {
   voltageMax: string;
   currentMin: string;
   currentMax: string;
-  oilTempMin: string;
-  oilTempMax: string;
   pfMin: string;
   pfMax: string;
 }
@@ -45,8 +43,6 @@ const EMPTY_FILTERS: FilterValues = {
   voltageMax: "",
   currentMin: "",
   currentMax: "",
-  oilTempMin: "",
-  oilTempMax: "",
   pfMin: "",
   pfMax: "",
 };
@@ -95,8 +91,6 @@ export function ReportsFilters({
     (filters.voltageMax ? 1 : 0) +
     (filters.currentMin ? 1 : 0) +
     (filters.currentMax ? 1 : 0) +
-    (filters.oilTempMin ? 1 : 0) +
-    (filters.oilTempMax ? 1 : 0) +
     (filters.pfMin ? 1 : 0) +
     (filters.pfMax ? 1 : 0);
 
@@ -214,13 +208,6 @@ export function ReportsFilters({
                 maxVal={filters.currentMax}
                 onMin={(v) => set("currentMin", v)}
                 onMax={(v) => set("currentMax", v)}
-              />
-              <ThresholdPair
-                label="Oil Temp (°C)"
-                minVal={filters.oilTempMin}
-                maxVal={filters.oilTempMax}
-                onMin={(v) => set("oilTempMin", v)}
-                onMax={(v) => set("oilTempMax", v)}
               />
               <ThresholdPair
                 label="Power Factor"

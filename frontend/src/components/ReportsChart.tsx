@@ -12,7 +12,7 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/Card";
 import type { Reading } from "../types";
 
-type Metric = "voltage" | "current" | "apparent_power" | "oil_temp";
+type Metric = "voltage" | "current" | "apparent_power";
 
 const METRIC_CONFIG: Record<
   Metric,
@@ -21,7 +21,6 @@ const METRIC_CONFIG: Record<
   voltage: { label: "Voltage", color: "#0d9488", unit: "V" },
   current: { label: "Current", color: "#6366f1", unit: "A" },
   apparent_power: { label: "Power", color: "#f59e0b", unit: "VA" },
-  oil_temp: { label: "Oil Temp", color: "#ef4444", unit: "°C" },
 };
 
 const TOOLTIP_STYLE = {
@@ -36,7 +35,6 @@ export function ReportsChart({ readings }: { readings: Reading[] }) {
     voltage: true,
     current: true,
     apparent_power: false,
-    oil_temp: false,
   });
 
   const chartData = useMemo(
@@ -51,7 +49,6 @@ export function ReportsChart({ readings }: { readings: Reading[] }) {
           voltage: r.voltage,
           current: r.current,
           apparent_power: r.apparent_power,
-          oil_temp: r.oil_temp,
         })),
     [readings],
   );
