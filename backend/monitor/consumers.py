@@ -1,8 +1,12 @@
+import secrets
 from datetime import datetime
+from urllib.parse import unquote
 
-from asgiref.sync import async_to_sync
+from asgiref.sync import async_to_sync, sync_to_async
 from channels.layers import get_channel_layer
 from channels.generic.websocket import AsyncJsonWebsocketConsumer
+from django.utils import timezone
+from .models import Transformer
 
 
 def _adjust_energy_kwh(raw_energy, transformer):
@@ -111,3 +115,121 @@ class MonitorConsumer(AsyncJsonWebsocketConsumer):
 
     async def reading_update(self, event):
         await self.send_json(event)
+
+
+class DeviceConsumer(AsyncJsonWebsocketConsumer):
+    """WebSocket consumer for device-side reading push.
+
+    Devices connect to /ws/device/<transformer_id>/?key=<device_api_key>
+    and push JSON reading frames. Each frame is broadcast to the
+    monitor_<id> channel group so dashboard subscribers receive live updates.
+    Authentication is via a per-transformer API key (constant-time compare).
+    """
+
+    async def connect(self):
+        self.group_name = None
+        self.transformer = None
+
+        transformer_id_str = self.scope["url_route"]["kwargs"]["transformer_id"]
+        try:
+            transformer_id = int(transformer_id_str)
+        except ValueError:
+            await self.close(code=4400)
+            return
+
+        # Parse ?key= from the query string.
+        query_string = self.scope.get("query_string", b"").decode(errors="ignore")
+        client_key = ""
+        for part in query_string.split("&"):
+            if part.startswith("key="):
+                client_key = unquote(part[len("key="):])
+                break
+
+        if not client_key:
+            await self.close(code=4401)
+            return
+
+        try:
+            transformer = await sync_to_async(Transformer.objects.get)(pk=transformer_id)
+        except Transformer.DoesNotExist:
+            await self.close(code=4404)
+            return
+
+        server_key = (transformer.device_api_key or "").strip()
+        if not server_key:
+            await self.close(code=4403)
+            return
+
+        try:
+            if len(client_key) != len(server_key) or not secrets.compare_digest(client_key, server_key):
+                await self.close(code=4403)
+                return
+        except (TypeError, ValueError):
+            await self.close(code=4403)
+            return
+
+        self.transformer = transformer
+        self.transformer_id = transformer_id
+        self.group_name = f"monitor_{transformer_id}"
+        await self.channel_layer.group_add(self.group_name, self.channel_name)
+        await self.accept()
+
+    async def disconnect(self, close_code):
+        if self.group_name:
+            await self.channel_layer.group_discard(self.group_name, self.channel_name)
+
+    async def receive_json(self, content):
+        if self.transformer is None:
+            return
+
+        # Validate required numeric fields before broadcasting.
+        required = ("voltage", "current", "apparent_power", "real_power", "power_factor", "frequency", "oil_temp")
+        for field in required:
+            if content.get(field) is None:
+                return
+
+        now = timezone.now()
+        timestamp_iso = now.isoformat()
+        synthetic_id = int(now.timestamp() * 1000)
+
+        offset = 0.0
+        try:
+            offset = float(self.transformer.energy_kwh_offset or 0.0)
+        except (TypeError, AttributeError, ValueError):
+            offset = 0.0
+
+        raw_energy = content.get("energy_kwh")
+        adjusted_energy = None
+        if raw_energy is not None:
+            try:
+                adjusted_energy = max(0.0, float(raw_energy) - offset)
+            except (TypeError, ValueError):
+                adjusted_energy = None
+
+        payload = {
+            "type": "reading_update",
+            "reading": {
+                "id": synthetic_id,
+                "transformer_id": self.transformer_id,
+                "timestamp": timestamp_iso,
+                "voltage": content.get("voltage"),
+                "current": content.get("current"),
+                "apparent_power": content.get("apparent_power"),
+                "real_power": content.get("real_power"),
+                "power_factor": content.get("power_factor"),
+                "frequency": content.get("frequency"),
+                "oil_temp": content.get("oil_temp"),
+                "energy_kwh": adjusted_energy,
+                "condition": content.get("condition", "normal"),
+            },
+            "last_seen": timestamp_iso,
+        }
+        await self.channel_layer.group_send(self.group_name, payload)
+
+        # Update last_seen so the dashboard knows the device is alive.
+        qs = Transformer.objects.filter(pk=self.transformer_id)
+        await sync_to_async(qs.update)(last_seen=now)
+
+    async def reading_update(self, event):
+        # Device consumers don't forward dashboard broadcasts back to the device.
+        pass
