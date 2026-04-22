@@ -38,7 +38,8 @@ export function EditTransformerDialog({
   const [nominalFreq, setNominalFreq] = useState<number>(60);
   const [ratedKva, setRatedKva] = useState<number>(15);
   const [ratedCurrent, setRatedCurrent] = useState<number>(68);
-  const [readingIntervalMinutes, setReadingIntervalMinutes] = useState<number>(0);
+  const [readingIntervalMinutes, setReadingIntervalMinutes] =
+    useState<number>(0);
   const [site, setSite] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
   const [isActive, setIsActive] = useState<boolean>(true);
