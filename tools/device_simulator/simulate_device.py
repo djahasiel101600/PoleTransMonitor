@@ -25,9 +25,11 @@ import socket
 import ssl
 import struct
 import sys
+import threading
 import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 from typing import Any
 from urllib import error, parse, request
@@ -53,6 +55,190 @@ class ConfigError(Exception):
 
 class WsConnectError(Exception):
     pass
+
+
+# ---------------------------------------------------------------------------
+# Runtime parameter overrides + embedded browser control panel
+# ---------------------------------------------------------------------------
+
+_PANEL_HTML = r"""<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><title>Simulator Control</title><style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:system-ui,sans-serif;background:#0f172a;color:#e2e8f0;padding:1.5rem}h1{font-size:1.15rem;font-weight:600;margin-bottom:1.2rem}h2{font-size:.75rem;font-weight:600;color:#94a3b8;text-transform:uppercase;letter-spacing:.05em;margin-bottom:.6rem}.g{display:grid;grid-template-columns:1fr 1fr;gap:1.2rem}.card{background:#1e293b;border-radius:.5rem;padding:1rem}.note{font-size:.73rem;color:#64748b;margin-bottom:.7rem}.ch{display:grid;grid-template-columns:145px 1fr 1fr;gap:.4rem;margin-bottom:.25rem}.ch span{font-size:.68rem;color:#64748b;text-align:center}.ch span:first-child{text-align:left}.row{display:grid;grid-template-columns:145px 1fr 1fr;gap:.4rem;align-items:center;margin-bottom:.38rem}.lbl{font-size:.78rem;color:#cbd5e1}.unit{font-size:.68rem;color:#64748b}input[type=number]{width:100%;background:#0f172a;border:1px solid #334155;border-radius:.25rem;padding:.28rem .4rem;color:#f1f5f9;font-size:.78rem}input[type=number]:focus{outline:none;border-color:#3b82f6}.acts{display:flex;gap:.5rem;margin-top:.8rem}button{border:none;border-radius:.35rem;padding:.4rem 1rem;font-size:.82rem;cursor:pointer}.bp{background:#3b82f6;color:#fff}.bp:hover{background:#2563eb}.br{background:#334155;color:#cbd5e1}.br:hover{background:#475569}.msg{font-size:.75rem;min-height:1.1em;margin-top:.4rem}.ok{color:#22c55e}.er{color:#ef4444}table{width:100%;border-collapse:collapse;font-size:.73rem}th{text-align:left;color:#64748b;font-weight:500;padding:.22rem .38rem;border-bottom:1px solid #334155}td{padding:.22rem .38rem;border-bottom:1px solid #1e293b;color:#cbd5e1}tr:last-child td{border-bottom:none}.b{display:inline-block;padding:.1rem .32rem;border-radius:.2rem;font-size:.68rem;font-weight:500}.bn{background:#166534;color:#86efac}.bh{background:#713f12;color:#fde68a}.bo{background:#7c2d12;color:#fca5a5}.bx{background:#1e3a5f;color:#93c5fd}</style></head><body><h1>PoleTransMonitor &mdash; Simulator Control Panel</h1><div class="g">
+<div class="card"><h2>Parameter Clamps</h2><p class="note">Leave blank to disable a clamp. Applied on top of normal reading generation.</p>
+<div class="ch"><span>Parameter</span><span>Min</span><span>Max</span></div>
+<form id="pf"><div id="rows"></div><div class="acts"><button type="submit" class="bp">Apply</button><button type="button" class="br" id="cb">Clear All</button></div>
+<div id="msg" class="msg"></div></form></div>
+<div class="card"><h2>Recent Readings</h2><div id="rd"><p class="note">Waiting for readings&hellip;</p></div></div>
+</div><script>
+const P=[
+{k:"voltage",l:"Voltage",u:"V",n:0,x:400,s:1},
+{k:"current",l:"Current",u:"A",n:0,x:500,s:0.1},
+{k:"apparent_power",l:"Apparent Power",u:"VA",n:0,x:100000,s:100},
+{k:"power_factor",l:"Power Factor",u:"",n:0,x:1,s:0.01},
+{k:"frequency",l:"Frequency",u:"Hz",n:40,x:70,s:0.1},
+{k:"oil_temp",l:"Oil Temp",u:"\u00b0C",n:0,x:200,s:0.5},
+];let st={};
+function build(p){const c=document.getElementById("rows");c.innerHTML="";
+P.forEach(f=>{const r=document.createElement("div");r.className="row";
+const lo=p[f.k+"_min"]??"",hi=p[f.k+"_max"]??"";
+r.innerHTML='<span class="lbl">'+f.l+' <span class="unit">'+f.u+'</span></span>'+
+'<input type="number" name="'+f.k+'_min" placeholder="\u2014" min="'+f.n+'" max="'+f.x+'" step="'+f.s+'" value="'+lo+'">'+
+'<input type="number" name="'+f.k+'_max" placeholder="\u2014" min="'+f.n+'" max="'+f.x+'" step="'+f.s+'" value="'+hi+'">';
+c.appendChild(r);});}
+function bc(c){if(!c||c==="normal")return"bn";if(c.includes("overload")||c==="critical"||c==="severe_overload")return"bo";if(c.includes("heavy")||c==="danger_zone")return"bh";return"bx";}
+function rend(a){if(!a||!a.length){document.getElementById("rd").innerHTML='<p class="note">No readings yet.</p>';return;}
+let h='<table><thead><tr><th>Time</th><th>VA</th><th>V</th><th>A</th><th>PF</th><th>Temp</th><th>Condition</th></tr></thead><tbody>';
+a.slice(-10).reverse().forEach(r=>{const t=r.ts?new Date(r.ts).toLocaleTimeString():"\u2014";
+const c=r.reading?.condition||"\u2014";
+h+='<tr><td>'+t+'</td><td>'+(r.reading?.apparent_power??"\u2014")+'</td><td>'+(r.reading?.voltage??"\u2014")+'</td><td>'+(r.reading?.current??"\u2014")+'</td><td>'+(r.reading?.power_factor??"\u2014")+'</td><td>'+(r.reading?.oil_temp??"\u2014")+'\u00b0</td><td><span class="b '+bc(c)+'">'+c+'</span></td></tr>';});
+h+='</tbody></table>';document.getElementById("rd").innerHTML=h;}
+async function lp(){try{const r=await fetch("/api/params");st=await r.json();build(st);}catch(e){}}
+async function ls(){try{const r=await fetch("/api/status");const d=await r.json();rend(d.readings||[]);}catch(e){}}
+document.getElementById("pf").addEventListener("submit",async e=>{
+e.preventDefault();const fd=new FormData(e.target),p={};
+P.forEach(f=>{
+const lo=fd.get(f.k+"_min"),hi=fd.get(f.k+"_max");
+p[f.k+"_min"]=(lo!=null&&lo!="")? parseFloat(lo):null;
+p[f.k+"_max"]=(hi!=null&&hi!="")? parseFloat(hi):null;
+});
+const el=document.getElementById("msg");
+try{const r=await fetch("/api/params",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(p)});
+if(r.ok){st=p;el.textContent="Applied \u2713";el.className="msg ok";setTimeout(()=>{el.textContent="";},2500);}else{el.textContent="Error "+r.status;el.className="msg er";}
+}catch(ex){el.textContent=""+ex;el.className="msg er";}
+});
+document.getElementById("cb").addEventListener("click",()=>{
+const p={};P.forEach(f=>{p[f.k+"_min"]=null;p[f.k+"_max"]=null;});
+fetch("/api/params",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(p)}).then(()=>lp());
+});
+lp();ls();setInterval(ls,5000);
+</script></body></html>"""
+
+_overrides: dict[str, float | None] = {
+    "voltage_min": None, "voltage_max": None,
+    "current_min": None, "current_max": None,
+    "apparent_power_min": None, "apparent_power_max": None,
+    "power_factor_min": None, "power_factor_max": None,
+    "frequency_min": None, "frequency_max": None,
+    "oil_temp_min": None, "oil_temp_max": None,
+}
+_override_lock = threading.Lock()
+_last_readings: list[dict[str, Any]] = []
+_last_readings_lock = threading.Lock()
+_MAX_LAST_READINGS = 50
+
+
+def _record_reading(transformer_id: int, reading: dict[str, Any]) -> None:
+    entry = {"ts": datetime.now(timezone.utc).isoformat(), "transformer_id": transformer_id, "reading": reading}
+    with _last_readings_lock:
+        _last_readings.append(entry)
+        if len(_last_readings) > _MAX_LAST_READINGS:
+            _last_readings.pop(0)
+
+
+def _apply_overrides(reading: dict[str, Any]) -> dict[str, Any]:
+    """Apply runtime min/max clamps from the control panel to a generated reading."""
+    with _override_lock:
+        ovr = dict(_overrides)
+    if not any(v is not None for v in ovr.values()):
+        return reading
+    result = dict(reading)
+
+    def _cf(key: str, lo_k: str, hi_k: str) -> None:
+        val = result.get(key)
+        if val is None:
+            return
+        lo_v, hi_v = ovr.get(lo_k), ovr.get(hi_k)
+        if lo_v is not None:
+            val = max(float(lo_v), float(val))
+        if hi_v is not None:
+            val = min(float(hi_v), float(val))
+        result[key] = val
+
+    _cf("voltage", "voltage_min", "voltage_max")
+    _cf("current", "current_min", "current_max")
+    _cf("power_factor", "power_factor_min", "power_factor_max")
+    _cf("frequency", "frequency_min", "frequency_max")
+    _cf("oil_temp", "oil_temp_min", "oil_temp_max")
+
+    # Recompute apparent_power from (possibly clamped) V and I.
+    v = float(result.get("voltage") or 230.0)
+    i_val = float(result.get("current") or 0.0)
+    result["apparent_power"] = max(0.0, v * i_val)
+
+    # Apply explicit apparent_power clamp and back-adjust current for consistency.
+    ap_min = ovr.get("apparent_power_min")
+    ap_max = ovr.get("apparent_power_max")
+    if ap_min is not None:
+        result["apparent_power"] = max(float(ap_min), result["apparent_power"])
+    if ap_max is not None:
+        result["apparent_power"] = min(float(ap_max), result["apparent_power"])
+    result["current"] = (result["apparent_power"] / v) if v > 0 else 0.0
+
+    # Recompute real_power.
+    result["real_power"] = max(0.0, result["apparent_power"] * float(result.get("power_factor") or 1.0))
+
+    # Round all fields.
+    for _k, _d in [("voltage", 3), ("current", 3), ("apparent_power", 3), ("real_power", 3),
+                   ("power_factor", 4), ("frequency", 3), ("oil_temp", 3)]:
+        if _k in result:
+            result[_k] = round(float(result[_k]), _d)
+
+    return result
+
+
+class SimControlHandler(BaseHTTPRequestHandler):
+    """Minimal HTTP handler for the browser control panel."""
+
+    def log_message(self, fmt: str, *args: Any) -> None:  # type: ignore[override]
+        pass  # suppress request logs
+
+    def _send(self, code: int, content_type: str, body: bytes) -> None:
+        self.send_response(code)
+        self.send_header("Content-Type", content_type)
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def do_GET(self) -> None:
+        path = parse.urlparse(self.path).path
+        if path == "/":
+            self._send(200, "text/html; charset=utf-8", _PANEL_HTML.encode("utf-8"))
+        elif path == "/api/params":
+            with _override_lock:
+                body = json.dumps(dict(_overrides)).encode("utf-8")
+            self._send(200, "application/json", body)
+        elif path == "/api/status":
+            with _last_readings_lock:
+                body = json.dumps({"readings": list(_last_readings)}).encode("utf-8")
+            self._send(200, "application/json", body)
+        else:
+            self.send_response(404)
+            self.end_headers()
+
+    def do_POST(self) -> None:
+        if parse.urlparse(self.path).path != "/api/params":
+            self.send_response(404)
+            self.end_headers()
+            return
+        length = int(self.headers.get("Content-Length") or "0")
+        body_bytes = self.rfile.read(length) if length > 0 else b""
+        try:
+            data = json.loads(body_bytes.decode("utf-8"))
+        except (json.JSONDecodeError, UnicodeDecodeError):
+            self.send_response(400)
+            self.end_headers()
+            return
+        with _override_lock:
+            for key in list(_overrides):
+                if key in data:
+                    val = data[key]
+                    _overrides[key] = float(val) if val is not None else None
+        self._send(200, "application/json", json.dumps({"ok": True}).encode("utf-8"))
+
+
+def _start_control_panel(port: int) -> None:
+    server = HTTPServer(("127.0.0.1", port), SimControlHandler)
+    t = threading.Thread(target=server.serve_forever, daemon=True, name="sim-control-panel")
+    t.start()
+    print(f"[INFO] Control panel: http://localhost:{port}/")
 
 
 class ApiClient:
@@ -971,7 +1157,8 @@ def run_once(
     failures = 0
     for runner in runners:
         dt = runner.spec.interval_seconds
-        payload = runner.engine.next_reading(dt)
+        payload = _apply_overrides(runner.engine.next_reading(dt))
+        _record_reading(runner.spec.transformer_id, payload)
         full_payload = {"transformer_id": runner.spec.transformer_id, **payload}
 
         if dry_run:
@@ -1084,7 +1271,8 @@ def run_continuous(
 
             for runner in due:
                 dt = max(0.01, now - runner.last_sent_monotonic)
-                payload = runner.engine.next_reading(dt)
+                payload = _apply_overrides(runner.engine.next_reading(dt))
+                _record_reading(runner.spec.transformer_id, payload)
                 full_payload = {"transformer_id": runner.spec.transformer_id, **payload}
 
                 if dry_run:
@@ -1263,6 +1451,15 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Generate payloads but do not POST",
     )
+    parser.add_argument(
+        "--control-panel",
+        metavar="PORT",
+        type=int,
+        nargs="?",
+        const=8888,
+        default=None,
+        help="Start the browser control panel (optionally specify PORT, default 8888)",
+    )
 
     subparsers = parser.add_subparsers(dest="command", required=True)
     subparsers.add_parser("validate-config", help="Validate config and print resolved targets")
@@ -1333,6 +1530,15 @@ def _apply_env_overrides(config: dict[str, Any]) -> None:
             except ValueError:
                 pass
 
+    cp_port = env("SIMULATOR_CONTROL_PANEL_PORT")
+    if cp_port:
+        try:
+            panel = config.setdefault("control_panel", {})
+            panel["enabled"] = True
+            panel["port"] = int(cp_port)
+        except ValueError:
+            pass
+
 
 def main() -> int:
     args = parse_args()
@@ -1363,6 +1569,14 @@ def main() -> int:
                 raise ConfigError("No targets left after --target filter")
 
         enforce_safety(config, specs)
+
+        panel_port: int | None = getattr(args, "control_panel", None)
+        if panel_port is None:
+            panel_cfg = config.get("control_panel", {})
+            if isinstance(panel_cfg, dict) and panel_cfg.get("enabled"):
+                panel_port = int(panel_cfg.get("port", 8888))
+        if panel_port is not None:
+            _start_control_panel(panel_port)
 
         runtime_cfg = config.get("runtime", {}) if isinstance(config.get("runtime"), dict) else {}
         post_retries = int(runtime_cfg.get("post_retries", 2))
