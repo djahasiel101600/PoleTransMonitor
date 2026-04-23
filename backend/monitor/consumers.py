@@ -1,12 +1,13 @@
 import secrets
-from datetime import datetime
+from datetime import datetime, timedelta
 from urllib.parse import unquote
 
 from asgiref.sync import async_to_sync, sync_to_async
 from channels.layers import get_channel_layer
 from channels.generic.websocket import AsyncJsonWebsocketConsumer
+from django.db import transaction
 from django.utils import timezone
-from .models import Transformer
+from .models import Alert, Reading, ReadingBuffer, Transformer
 
 
 def _adjust_energy_kwh(raw_energy, transformer):
@@ -35,6 +36,112 @@ def _broadcast_payload(payload):
     channel_layer = get_channel_layer()
     group_name = f"monitor_{payload['reading']['transformer_id']}"
     async_to_sync(channel_layer.group_send)(group_name, payload)
+
+
+# ---------------------------------------------------------------------------
+# DB persistence helpers (mirror of views.py logic, no circular import)
+# ---------------------------------------------------------------------------
+
+_CONDITION_SEVERITY = {
+    "normal": 0, "heavy_load": 1, "heavy_peak_load": 2,
+    "poor_power_quality": 3, "abnormal": 4, "danger_zone": 5,
+    "overload": 6, "severe_overload": 7, "critical": 8,
+}
+
+
+def _ws_window_start(now, interval_minutes):
+    return now - timedelta(
+        minutes=now.minute % interval_minutes,
+        seconds=now.second,
+        microseconds=now.microsecond,
+    )
+
+
+def _ws_average(rows, attr):
+    vals = [getattr(r, attr) for r in rows if getattr(r, attr) is not None]
+    return sum(vals) / len(vals) if vals else None
+
+
+def _ws_most_severe_condition(rows):
+    conditions = [r.condition for r in rows if r.condition]
+    if not conditions:
+        return "normal"
+    return max(conditions, key=lambda c: _CONDITION_SEVERITY.get(c, 0))
+
+
+def _ws_flush_buffer_if_due(transformer, now):
+    interval = int(getattr(transformer, "reading_interval_minutes", 0) or 0)
+    if interval <= 0:
+        return None
+    window_start = _ws_window_start(now, interval)
+    stale_qs = ReadingBuffer.objects.filter(
+        transformer=transformer,
+        timestamp__lt=window_start,
+    ).order_by("timestamp")
+    rows = list(stale_qs)
+    if not rows:
+        return None
+    latest = rows[-1]
+    reading = Reading.objects.create(
+        transformer=transformer,
+        voltage=_ws_average(rows, "voltage"),
+        current=_ws_average(rows, "current"),
+        apparent_power=_ws_average(rows, "apparent_power"),
+        real_power=_ws_average(rows, "real_power"),
+        power_factor=_ws_average(rows, "power_factor"),
+        frequency=_ws_average(rows, "frequency"),
+        oil_temp=_ws_average(rows, "oil_temp"),
+        energy_kwh=latest.energy_kwh,
+        condition=_ws_most_severe_condition(rows),
+    )
+    stale_qs.delete()
+    return reading
+
+
+def _persist_device_reading(transformer, data, now):
+    """Write an incoming device reading to the DB, mirroring ReadingViewSet.create logic.
+
+    Respects reading_interval_minutes: when > 0, buffers readings and flushes
+    averaged rows at window boundaries instead of writing every reading.
+    """
+    condition = data.get("condition", "normal")
+    interval = int(getattr(transformer, "reading_interval_minutes", 0) or 0)
+
+    if interval <= 0:
+        Reading.objects.create(
+            transformer=transformer,
+            voltage=data.get("voltage"),
+            current=data.get("current"),
+            apparent_power=data.get("apparent_power"),
+            real_power=data.get("real_power"),
+            power_factor=data.get("power_factor"),
+            frequency=data.get("frequency"),
+            oil_temp=data.get("oil_temp"),
+            energy_kwh=data.get("energy_kwh"),
+            condition=condition,
+        )
+    else:
+        with transaction.atomic():
+            ReadingBuffer.objects.create(
+                transformer=transformer,
+                voltage=data.get("voltage"),
+                current=data.get("current"),
+                apparent_power=data.get("apparent_power"),
+                real_power=data.get("real_power"),
+                power_factor=data.get("power_factor"),
+                frequency=data.get("frequency"),
+                oil_temp=data.get("oil_temp"),
+                energy_kwh=data.get("energy_kwh"),
+                condition=condition,
+            )
+            _ws_flush_buffer_if_due(transformer, now)
+
+    if condition != "normal":
+        Alert.objects.create(
+            transformer=transformer,
+            condition=condition,
+            message=f"Condition: {condition}",
+        )
 
 
 def broadcast_reading(reading):
@@ -225,6 +332,20 @@ class DeviceConsumer(AsyncJsonWebsocketConsumer):
             "last_seen": timestamp_iso,
         }
         await self.channel_layer.group_send(self.group_name, payload)
+
+        # Persist to DB and update last_seen concurrently via sync_to_async.
+        reading_data = {
+            "voltage": content.get("voltage"),
+            "current": content.get("current"),
+            "apparent_power": content.get("apparent_power"),
+            "real_power": content.get("real_power"),
+            "power_factor": content.get("power_factor"),
+            "frequency": content.get("frequency"),
+            "oil_temp": content.get("oil_temp"),
+            "energy_kwh": content.get("energy_kwh"),
+            "condition": content.get("condition", "normal"),
+        }
+        await sync_to_async(_persist_device_reading)(self.transformer, reading_data, now)
 
         # Update last_seen so the dashboard knows the device is alive.
         qs = Transformer.objects.filter(pk=self.transformer_id)
