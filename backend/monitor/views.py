@@ -651,7 +651,7 @@ class ReadingViewSet(viewsets.ModelViewSet):
         header = [
             "timestamp", "transformer", "voltage", "current",
             "apparent_power", "real_power", "power_factor",
-            "frequency", "oil_temp", "energy_kwh", "condition",
+            "frequency", "energy_kwh", "condition",
         ]
 
         def row_fn(r):
@@ -661,7 +661,7 @@ class ReadingViewSet(viewsets.ModelViewSet):
                 r.timestamp.isoformat() if r.timestamp else "",
                 r.transformer.name if r.transformer else "",
                 r.voltage, r.current, r.apparent_power, r.real_power,
-                r.power_factor, r.frequency, r.oil_temp,
+                r.power_factor, r.frequency,
                 round(energy, 4), r.condition,
             ]
 
