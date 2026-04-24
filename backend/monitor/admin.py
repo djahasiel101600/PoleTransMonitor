@@ -1,11 +1,15 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
 from django.contrib.auth.models import User
-from .models import Transformer, Reading, Alert, SmsRecipient, UserProfile
+from import_export.admin import ExportActionMixin, ImportExportModelAdmin
+
+from .models import Alert, Reading, SmsRecipient, Transformer, UserProfile
+from .resources import AlertResource, ReadingResource, SmsRecipientResource, TransformerResource
 
 
 @admin.register(Transformer)
-class TransformerAdmin(admin.ModelAdmin):
+class TransformerAdmin(ImportExportModelAdmin):
+    resource_classes = [TransformerResource]
     list_display = [
         "name",
         "serial",
@@ -18,19 +22,22 @@ class TransformerAdmin(admin.ModelAdmin):
 
 
 @admin.register(Reading)
-class ReadingAdmin(admin.ModelAdmin):
+class ReadingAdmin(ImportExportModelAdmin):
+    resource_classes = [ReadingResource]
     list_display = ["transformer", "timestamp", "voltage", "current", "condition"]
     list_filter = ["transformer", "condition"]
 
 
 @admin.register(Alert)
-class AlertAdmin(admin.ModelAdmin):
+class AlertAdmin(ExportActionMixin, admin.ModelAdmin):
+    resource_classes = [AlertResource]
     list_display = ["transformer", "timestamp", "condition", "sms_sent", "acknowledged"]
     list_filter = ["transformer", "condition", "acknowledged"]
 
 
 @admin.register(SmsRecipient)
-class SmsRecipientAdmin(admin.ModelAdmin):
+class SmsRecipientAdmin(ImportExportModelAdmin):
+    resource_classes = [SmsRecipientResource]
     list_display = ["owner_name", "phone_number", "created_at"]
     search_fields = ["owner_name", "phone_number"]
 

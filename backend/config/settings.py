@@ -35,6 +35,7 @@ INSTALLED_APPS = [
     "rest_framework",
     "corsheaders",
     "channels",
+    "import_export",
     "monitor",
 ]
 
