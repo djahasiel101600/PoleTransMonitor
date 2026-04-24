@@ -1,7 +1,47 @@
+import re
+from datetime import datetime
+
 from import_export import fields, resources
 from import_export.widgets import DateTimeWidget, ForeignKeyWidget
 
 from .models import Alert, Reading, SmsRecipient, Transformer
+
+
+class FlexibleDateTimeWidget(DateTimeWidget):
+    """
+    DateTimeWidget that accepts ISO 8601 timestamps with or without timezone,
+    including colon-separated UTC offsets produced by Django's serializers
+    (e.g. 2026-04-21T10:01:49.532618+00:00).
+    """
+
+    _FORMATS = [
+        "%Y-%m-%dT%H:%M:%S.%f%z",   # with microseconds + tz
+        "%Y-%m-%dT%H:%M:%S%z",       # without microseconds + tz
+        "%Y-%m-%dT%H:%M:%S.%f",      # with microseconds, naive
+        "%Y-%m-%dT%H:%M:%S",         # basic ISO, naive
+        "%Y-%m-%d %H:%M:%S.%f%z",   # space separator + tz
+        "%Y-%m-%d %H:%M:%S",         # space separator, naive
+    ]
+
+    def _normalize(self, value: str) -> str:
+        """Strip the colon from tz offsets and normalise 'Z' suffix."""
+        value = value.strip()
+        if value.endswith("Z"):
+            value = value[:-1] + "+0000"
+        # +00:00 -> +0000
+        value = re.sub(r"([+-])(\d{2}):(\d{2})$", r"\1\2\3", value)
+        return value
+
+    def clean(self, value, row=None, **kwargs):
+        if not value:
+            return None
+        normalized = self._normalize(str(value))
+        for fmt in self._FORMATS:
+            try:
+                return datetime.strptime(normalized, fmt)
+            except (ValueError, TypeError):
+                continue
+        raise ValueError(f"Cannot parse datetime value: {value!r}")
 
 
 class SmsRecipientResource(resources.ModelResource):
@@ -58,10 +98,12 @@ class ReadingResource(resources.ModelResource):
 
     # Declare timestamp explicitly so it is writable on import,
     # bypassing the auto_now_add constraint.
+    # Explicit formats are required because DateTimeWidget's defaults do not
+    # cover ISO 8601 with colon-separated timezone offsets (e.g. +00:00).
     timestamp = fields.Field(
         column_name="timestamp",
         attribute="timestamp",
-        widget=DateTimeWidget(),
+        widget=FlexibleDateTimeWidget(),
     )
 
     class Meta:
