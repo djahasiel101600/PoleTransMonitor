@@ -7,8 +7,8 @@
 #include <WiFi.h>
 
 static const char *NVS_BC_NAMESPACE = "ptm_bc";
-static const char *KEY_SYNC_EPOCH   = "time_epoch";
-static const char *KEY_SYNC_MS      = "time_ms";
+static const char *KEY_SYNC_EPOCH = "time_epoch";
+static const char *KEY_SYNC_MS = "time_ms";
 
 void BackendClient::begin(const char *baseUrl, int transformerId)
 {
@@ -20,8 +20,8 @@ void BackendClient::begin(const char *baseUrl, int transformerId)
   Preferences prefs;
   if (prefs.begin(NVS_BC_NAMESPACE, true))
   {
-    syncEpoch_  = prefs.getUInt(KEY_SYNC_EPOCH, 0);
-    syncMillis_ = prefs.getUInt(KEY_SYNC_MS,    0);
+    syncEpoch_ = prefs.getUInt(KEY_SYNC_EPOCH, 0);
+    syncMillis_ = prefs.getUInt(KEY_SYNC_MS, 0);
     // After a reboot millis() restarts from 0 but syncMillis_ still holds the
     // old value.  Reset syncMillis_ to 0 so getEstimatedEpoch() starts from
     // the stored epoch and advances with the new millis() counter.
@@ -99,16 +99,16 @@ int BackendClient::postReadingWithTimestamp(const ReadingPayload &payload, uint3
   // Use a doc large enough to hold the timestamp string.
   JsonDocument doc;
   doc["transformer_id"] = payload.transformerId;
-  doc["timestamp"]      = tsBuf;
-  doc["voltage"]        = payload.voltage;
-  doc["current"]        = payload.current;
+  doc["timestamp"] = tsBuf;
+  doc["voltage"] = payload.voltage;
+  doc["current"] = payload.current;
   doc["apparent_power"] = payload.apparentPower;
   if (!isnan(payload.realPower))
     doc["real_power"] = payload.realPower >= 0.0f ? payload.realPower : 0.0f;
   if (!isnan(payload.powerFactor) && payload.powerFactor >= 0.0f && payload.powerFactor <= 1.0f)
     doc["power_factor"] = payload.powerFactor;
   doc["frequency"] = payload.frequency;
-  doc["oil_temp"]   = payload.oilTemp;
+  doc["oil_temp"] = payload.oilTemp;
   if (!isnan(payload.energyKwh))
     doc["energy_kwh"] = payload.energyKwh >= 0.0f ? payload.energyKwh : 0.0f;
   doc["condition"] = payload.condition;
@@ -352,7 +352,7 @@ bool BackendClient::syncServerTime()
     return false; // Sanity check: epoch must be after 2001.
 
   uint32_t captured = millis();
-  syncEpoch_  = (uint32_t)ts;
+  syncEpoch_ = (uint32_t)ts;
   syncMillis_ = captured;
 
   // Persist so estimates survive a reboot during the offline period.

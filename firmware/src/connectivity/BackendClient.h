@@ -75,8 +75,8 @@ private:
   int transformerId_ = 1;
 
   // Time sync state (set by syncServerTime, persisted to NVS).
-  uint32_t syncEpoch_   = 0; // Server Unix epoch at last sync.
-  uint32_t syncMillis_  = 0; // millis() value at last sync.
+  uint32_t syncEpoch_ = 0;  // Server Unix epoch at last sync.
+  uint32_t syncMillis_ = 0; // millis() value at last sync.
 };
 
 #endif

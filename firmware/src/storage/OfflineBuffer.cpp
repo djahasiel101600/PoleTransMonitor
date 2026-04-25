@@ -7,195 +7,195 @@ const char *OfflineBuffer::BUFFER_FILE = "/readings.buf";
 
 bool OfflineBuffer::begin()
 {
-  // true = format partition on first mount failure (clears any corruption).
-  if (!LittleFS.begin(true))
-  {
+    // true = format partition on first mount failure (clears any corruption).
+    if (!LittleFS.begin(true))
+    {
 #if DEBUG_SERIAL
-    Serial.println("[OfflineBuffer] LittleFS mount failed");
+        Serial.println("[OfflineBuffer] LittleFS mount failed");
 #endif
-    mounted_ = false;
-    return false;
-  }
-  mounted_ = true;
+        mounted_ = false;
+        return false;
+    }
+    mounted_ = true;
 #if DEBUG_SERIAL
-  Serial.println("[OfflineBuffer] LittleFS mounted");
+    Serial.println("[OfflineBuffer] LittleFS mounted");
 #endif
-  return true;
+    return true;
 }
 
 void OfflineBuffer::push(const ReadingPayload &payload, uint32_t epochSec)
 {
-  if (!mounted_ || epochSec == 0)
-    return;
+    if (!mounted_ || epochSec == 0)
+        return;
 
-  // Guard against exceeding the cap.
-  if (LittleFS.exists(BUFFER_FILE))
-  {
-    File f = LittleFS.open(BUFFER_FILE, "r");
-    if (f)
+    // Guard against exceeding the cap.
+    if (LittleFS.exists(BUFFER_FILE))
     {
-      size_t sz = f.size();
-      f.close();
-      if (sz >= OFFLINE_BUFFER_MAX_BYTES)
-      {
+        File f = LittleFS.open(BUFFER_FILE, "r");
+        if (f)
+        {
+            size_t sz = f.size();
+            f.close();
+            if (sz >= OFFLINE_BUFFER_MAX_BYTES)
+            {
 #if DEBUG_SERIAL
-        Serial.println("[OfflineBuffer] Buffer full — dropping offline reading");
+                Serial.println("[OfflineBuffer] Buffer full — dropping offline reading");
+#endif
+                return;
+            }
+        }
+    }
+
+    // Serialize compact JSON with abbreviated keys to minimise flash writes.
+    JsonDocument doc;
+    doc["ts"] = epochSec;
+    doc["v"] = payload.voltage;
+    doc["a"] = payload.current;
+    doc["va"] = payload.apparentPower;
+    if (!isnan(payload.realPower) && payload.realPower >= 0.0f)
+        doc["w"] = payload.realPower;
+    if (!isnan(payload.powerFactor) && payload.powerFactor >= 0.0f && payload.powerFactor <= 1.0f)
+        doc["pf"] = payload.powerFactor;
+    doc["hz"] = payload.frequency;
+    if (!isnan(payload.oilTemp))
+        doc["ot"] = payload.oilTemp;
+    if (!isnan(payload.energyKwh) && payload.energyKwh >= 0.0f)
+        doc["kwh"] = payload.energyKwh;
+    doc["cond"] = payload.condition ? payload.condition : "normal";
+
+    File f = LittleFS.open(BUFFER_FILE, "a");
+    if (!f)
+    {
+#if DEBUG_SERIAL
+        Serial.println("[OfflineBuffer] Failed to open buffer file for append");
 #endif
         return;
-      }
     }
-  }
 
-  // Serialize compact JSON with abbreviated keys to minimise flash writes.
-  JsonDocument doc;
-  doc["ts"]   = epochSec;
-  doc["v"]    = payload.voltage;
-  doc["a"]    = payload.current;
-  doc["va"]   = payload.apparentPower;
-  if (!isnan(payload.realPower) && payload.realPower >= 0.0f)
-    doc["w"]  = payload.realPower;
-  if (!isnan(payload.powerFactor) && payload.powerFactor >= 0.0f && payload.powerFactor <= 1.0f)
-    doc["pf"] = payload.powerFactor;
-  doc["hz"]   = payload.frequency;
-  if (!isnan(payload.oilTemp))
-    doc["ot"] = payload.oilTemp;
-  if (!isnan(payload.energyKwh) && payload.energyKwh >= 0.0f)
-    doc["kwh"] = payload.energyKwh;
-  doc["cond"] = payload.condition ? payload.condition : "normal";
-
-  File f = LittleFS.open(BUFFER_FILE, "a");
-  if (!f)
-  {
-#if DEBUG_SERIAL
-    Serial.println("[OfflineBuffer] Failed to open buffer file for append");
-#endif
-    return;
-  }
-
-  serializeJson(doc, f);
-  f.print('\n');
-  f.close();
+    serializeJson(doc, f);
+    f.print('\n');
+    f.close();
 
 #if DEBUG_SERIAL
-  Serial.printf("[OfflineBuffer] Buffered reading ts=%u\n", epochSec);
+    Serial.printf("[OfflineBuffer] Buffered reading ts=%u\n", epochSec);
 #endif
 }
 
 bool OfflineBuffer::hasPending()
 {
-  if (!mounted_)
-    return false;
-  if (!LittleFS.exists(BUFFER_FILE))
-    return false;
-  File f = LittleFS.open(BUFFER_FILE, "r");
-  if (!f)
-    return false;
-  bool hasData = (f.size() > 0);
-  f.close();
-  return hasData;
+    if (!mounted_)
+        return false;
+    if (!LittleFS.exists(BUFFER_FILE))
+        return false;
+    File f = LittleFS.open(BUFFER_FILE, "r");
+    if (!f)
+        return false;
+    bool hasData = (f.size() > 0);
+    f.close();
+    return hasData;
 }
 
 void OfflineBuffer::replayAll(BackendClient &client, unsigned int delayMs)
 {
-  if (!mounted_ || !hasPending())
-    return;
+    if (!mounted_ || !hasPending())
+        return;
 
-  File f = LittleFS.open(BUFFER_FILE, "r");
-  if (!f)
-  {
-#if DEBUG_SERIAL
-    Serial.println("[OfflineBuffer] Failed to open buffer file for replay");
-#endif
-    return;
-  }
-
-  size_t total = 0;
-  size_t sent  = 0;
-  bool aborted = false;
-
-  while (f.available())
-  {
-    String line = f.readStringUntil('\n');
-    line.trim();
-    if (line.length() == 0)
-      continue;
-
-    total++;
-
-    JsonDocument doc;
-    if (deserializeJson(doc, line))
+    File f = LittleFS.open(BUFFER_FILE, "r");
+    if (!f)
     {
 #if DEBUG_SERIAL
-      Serial.printf("[OfflineBuffer] Skipping malformed line %u\n", (unsigned)total);
+        Serial.println("[OfflineBuffer] Failed to open buffer file for replay");
 #endif
-      continue; // skip corrupt lines
+        return;
     }
 
-    uint32_t epochSec = doc["ts"] | (uint32_t)0;
-    if (epochSec == 0)
-      continue;
+    size_t total = 0;
+    size_t sent = 0;
+    bool aborted = false;
 
-    ReadingPayload p;
-    p.transformerId  = client.getTransformerId();
-    p.voltage        = doc["v"]    | (float)NAN;
-    p.current        = doc["a"]    | (float)NAN;
-    p.apparentPower  = doc["va"]   | (float)NAN;
-    p.realPower      = doc["w"]    | (float)NAN;
-    p.powerFactor    = doc["pf"]   | (float)NAN;
-    p.frequency      = doc["hz"]   | (float)NAN;
-    p.oilTemp        = doc["ot"]   | (float)NAN;
-    p.energyKwh      = doc["kwh"]  | (float)NAN;
-
-    // condition is a short string; ArduinoJSON keeps the string in the doc pool.
-    static char condBuf[32];
-    const char *cond = doc["cond"] | "normal";
-    strncpy(condBuf, cond, sizeof(condBuf) - 1);
-    condBuf[sizeof(condBuf) - 1] = '\0';
-    p.condition = condBuf;
-
-    int code = client.postReadingWithTimestamp(p, epochSec);
-    if (code >= 200 && code < 300)
+    while (f.available())
     {
-      sent++;
+        String line = f.readStringUntil('\n');
+        line.trim();
+        if (line.length() == 0)
+            continue;
+
+        total++;
+
+        JsonDocument doc;
+        if (deserializeJson(doc, line))
+        {
 #if DEBUG_SERIAL
-      Serial.printf("[OfflineBuffer] Replayed %u/%u ts=%u HTTP %d\n",
-                    (unsigned)sent, (unsigned)total, epochSec, code);
+            Serial.printf("[OfflineBuffer] Skipping malformed line %u\n", (unsigned)total);
+#endif
+            continue; // skip corrupt lines
+        }
+
+        uint32_t epochSec = doc["ts"] | (uint32_t)0;
+        if (epochSec == 0)
+            continue;
+
+        ReadingPayload p;
+        p.transformerId = client.getTransformerId();
+        p.voltage = doc["v"] | (float)NAN;
+        p.current = doc["a"] | (float)NAN;
+        p.apparentPower = doc["va"] | (float)NAN;
+        p.realPower = doc["w"] | (float)NAN;
+        p.powerFactor = doc["pf"] | (float)NAN;
+        p.frequency = doc["hz"] | (float)NAN;
+        p.oilTemp = doc["ot"] | (float)NAN;
+        p.energyKwh = doc["kwh"] | (float)NAN;
+
+        // condition is a short string; ArduinoJSON keeps the string in the doc pool.
+        static char condBuf[32];
+        const char *cond = doc["cond"] | "normal";
+        strncpy(condBuf, cond, sizeof(condBuf) - 1);
+        condBuf[sizeof(condBuf) - 1] = '\0';
+        p.condition = condBuf;
+
+        int code = client.postReadingWithTimestamp(p, epochSec);
+        if (code >= 200 && code < 300)
+        {
+            sent++;
+#if DEBUG_SERIAL
+            Serial.printf("[OfflineBuffer] Replayed %u/%u ts=%u HTTP %d\n",
+                          (unsigned)sent, (unsigned)total, epochSec, code);
+#endif
+        }
+        else
+        {
+#if DEBUG_SERIAL
+            Serial.printf("[OfflineBuffer] POST failed (HTTP %d) — aborting replay\n", code);
+#endif
+            aborted = true;
+            break;
+        }
+
+        if (delayMs > 0)
+            delay(delayMs);
+    }
+
+    f.close();
+
+    if (!aborted)
+    {
+        LittleFS.remove(BUFFER_FILE);
+#if DEBUG_SERIAL
+        Serial.printf("[OfflineBuffer] Replay complete: %u entries sent, buffer cleared\n",
+                      (unsigned)sent);
 #endif
     }
     else
     {
 #if DEBUG_SERIAL
-      Serial.printf("[OfflineBuffer] POST failed (HTTP %d) — aborting replay\n", code);
+        Serial.printf("[OfflineBuffer] Replay aborted after %u/%u entries; buffer kept for next reconnect\n",
+                      (unsigned)sent, (unsigned)total);
 #endif
-      aborted = true;
-      break;
     }
-
-    if (delayMs > 0)
-      delay(delayMs);
-  }
-
-  f.close();
-
-  if (!aborted)
-  {
-    LittleFS.remove(BUFFER_FILE);
-#if DEBUG_SERIAL
-    Serial.printf("[OfflineBuffer] Replay complete: %u entries sent, buffer cleared\n",
-                  (unsigned)sent);
-#endif
-  }
-  else
-  {
-#if DEBUG_SERIAL
-    Serial.printf("[OfflineBuffer] Replay aborted after %u/%u entries; buffer kept for next reconnect\n",
-                  (unsigned)sent, (unsigned)total);
-#endif
-  }
 }
 
 void OfflineBuffer::clear()
 {
-  if (mounted_)
-    LittleFS.remove(BUFFER_FILE);
+    if (mounted_)
+        LittleFS.remove(BUFFER_FILE);
 }
