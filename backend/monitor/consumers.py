@@ -32,6 +32,72 @@ def _adjust_energy_kwh(raw_energy, transformer):
     return adjusted_energy
 
 
+_ENERGY_ROLLBACK_THRESHOLD_KWH = 1.0
+
+
+def _check_energy_rollback(transformer, new_energy_kwh):
+    """Detect an unexpected PZEM energy counter drop and react.
+
+    If the incoming energy value is significantly lower than the last stored
+    reading — and no firmware-initiated reset is pending — we treat this as an
+    unexpected rollback (e.g. power loss, manual PZEM button reset, or hardware
+    replacement without going through the dashboard Reset flow).
+
+    Action taken:
+      - Zero out energy_kwh_offset so the display starts tracking from the new
+        hardware value rather than drifting negative forever.
+      - Create an Alert so staff are notified.
+
+    If pending_energy_reset is True the firmware already requested a hardware
+    reset through the dashboard; that path is handled by ack_energy_reset and
+    we must not interfere.
+    """
+    if new_energy_kwh is None:
+        return
+
+    try:
+        new_val = float(new_energy_kwh)
+    except (TypeError, ValueError):
+        return
+
+    last_energy = (
+        Reading.objects.filter(transformer=transformer, energy_kwh__isnull=False)
+        .order_by("-timestamp")
+        .values_list("energy_kwh", flat=True)
+        .first()
+    )
+    if last_energy is None:
+        return  # No history yet; nothing to compare against.
+
+    try:
+        last_val = float(last_energy)
+    except (TypeError, ValueError):
+        return
+
+    if new_val >= last_val - _ENERGY_ROLLBACK_THRESHOLD_KWH:
+        return  # Normal or negligible drop; no action needed.
+
+    # Significant rollback detected.
+    if getattr(transformer, "pending_energy_reset", False):
+        # Expected: firmware is in the middle of an admin-requested reset.
+        # ack_energy_reset will clear the offset once the PZEM is confirmed reset.
+        return
+
+    # Unexpected rollback — zero the offset so the UI tracks the new hardware value.
+    transformer.energy_kwh_offset = 0.0
+    transformer.save(update_fields=["energy_kwh_offset"])
+    Alert.objects.create(
+        transformer=transformer,
+        condition="abnormal",
+        message=(
+            f"Energy counter rollback detected: PZEM accumulated energy dropped from "
+            f"{last_val:.3f} kWh to {new_val:.3f} kWh unexpectedly. "
+            "Device may have lost power or been manually reset. "
+            "Energy offset has been zeroed to track from the new hardware value."
+        ),
+    )
+
+
 def _broadcast_payload(payload):
     channel_layer = get_channel_layer()
     group_name = f"monitor_{payload['reading']['transformer_id']}"
@@ -106,6 +172,10 @@ def _persist_device_reading(transformer, data, now):
     """
     condition = data.get("condition", "normal")
     interval = int(getattr(transformer, "reading_interval_minutes", 0) or 0)
+    energy_kwh = data.get("energy_kwh")
+
+    # Detect unexpected hardware energy counter rollbacks before persisting.
+    _check_energy_rollback(transformer, energy_kwh)
 
     if interval <= 0:
         Reading.objects.create(

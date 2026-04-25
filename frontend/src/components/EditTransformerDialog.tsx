@@ -137,42 +137,48 @@ export function EditTransformerDialog({
             <CardContent>
               <form onSubmit={submit} className="space-y-3">
                 {isAdmin && (
-                  <div className="space-y-1 rounded-md border border-border/80 bg-muted/20 p-3">
-                    <label className="flex items-center gap-2">
-                      <input
-                        type="checkbox"
-                        checked={isActive}
-                        onChange={(e) => setIsActive(e.target.checked)}
-                        className="h-4 w-4"
-                      />
-                      <span className="text-sm font-medium text-foreground">
-                        Device is {isActive ? "Active" : "Deactivated"}
-                      </span>
-                    </label>
-                    <p className="text-xs text-muted-foreground">
-                      When deactivated, the server rejects incoming readings and
-                      the ESP32 stops sending measurements until reactivated.
-                    </p>
-                  </div>
+                  <>
+                    <div className="space-y-1 rounded-md border border-border/80 bg-muted/20 p-3">
+                      <label className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          checked={isActive}
+                          onChange={(e) => setIsActive(e.target.checked)}
+                          className="h-4 w-4"
+                        />
+                        <span className="text-sm font-medium text-foreground">
+                          Device is {isActive ? "Active" : "Deactivated"}
+                        </span>
+                      </label>
+                      <p className="text-xs text-muted-foreground">
+                        When deactivated, the server rejects incoming readings
+                        and the ESP32 stops sending measurements until
+                        reactivated.
+                      </p>
+                    </div>
 
-                  <div className="space-y-1 rounded-md border border-border/80 bg-muted/20 p-3">
-                    <label className="flex items-center gap-2">
-                      <input
-                        type="checkbox"
-                        checked={pendingOpenPortal}
-                        onChange={(e) => setPendingOpenPortal(e.target.checked)}
-                        className="h-4 w-4"
-                      />
-                      <span className="text-sm font-medium text-foreground">
-                        Open config portal on next sync
-                      </span>
-                    </label>
-                    <p className="text-xs text-muted-foreground">
-                      When checked, the ESP32 will open its WiFiManager config portal
-                      on the next device_config sync (within 5 minutes). The flag clears
-                      automatically after the device acknowledges.
-                    </p>
-                  </div>
+                    <div className="space-y-1 rounded-md border border-border/80 bg-muted/20 p-3">
+                      <label className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          checked={pendingOpenPortal}
+                          onChange={(e) =>
+                            setPendingOpenPortal(e.target.checked)
+                          }
+                          className="h-4 w-4"
+                        />
+                        <span className="text-sm font-medium text-foreground">
+                          Open config portal on next sync
+                        </span>
+                      </label>
+                      <p className="text-xs text-muted-foreground">
+                        When checked, the ESP32 will open its WiFiManager config
+                        portal on the next device_config sync (within 5
+                        minutes). The flag clears automatically after the device
+                        acknowledges.
+                      </p>
+                    </div>
+                  </>
                 )}
                 <div className="space-y-1">
                   <label className="text-sm font-medium text-foreground">

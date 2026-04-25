@@ -48,7 +48,7 @@ from .serializers import (
     UserSerializer,
     FirmwareReleaseSerializer,
 )
-from .consumers import broadcast_live_reading, broadcast_reading
+from .consumers import broadcast_live_reading, broadcast_reading, _check_energy_rollback
 
 
 # ---------------------------------------------------------------------------
@@ -525,7 +525,10 @@ class TransformerViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_403_FORBIDDEN,
             )
         transformer.pending_energy_reset = False
-        transformer.save(update_fields=["pending_energy_reset"])
+        # Clear the offset so the dashboard tracks kWh from 0 now that
+        # the PZEM hardware counter has been confirmed reset to 0.
+        transformer.energy_kwh_offset = 0.0
+        transformer.save(update_fields=["pending_energy_reset", "energy_kwh_offset"])
         return Response({"ok": True})
 
     @action(detail=True, methods=["post"], url_path="ack_portal_open")
@@ -612,6 +615,9 @@ class ReadingViewSet(viewsets.ModelViewSet):
             "energy_kwh": serializer.validated_data.get("energy_kwh"),
             "condition": serializer.validated_data.get("condition", "normal"),
         }
+
+        # Detect unexpected PZEM energy counter rollbacks before persisting.
+        _check_energy_rollback(transformer, payload_data.get("energy_kwh"))
 
         interval = int(getattr(transformer, "reading_interval_minutes", 0) or 0)
         if interval <= 0:

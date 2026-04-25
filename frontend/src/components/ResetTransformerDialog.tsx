@@ -73,9 +73,9 @@ export function ResetTransformerDialog({
                 </div>
                 <div className="text-xs text-muted-foreground">
                   This will delete stored readings and alerts for this
-                  transformer, and set an energy baseline offset so the
-                  dashboard energy counter starts near 0 after replacement. The
-                  device energy isn’t physically reset.
+                  transformer, and reset the energy counter. The PZEM hardware
+                  energy accumulator will also be remotely reset on the
+                  device's next config sync.
                 </div>
                 <div className="text-xs text-muted-foreground">
                   Use this when a transformer/PZEM module was replaced or the
