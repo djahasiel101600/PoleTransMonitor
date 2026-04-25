@@ -10,6 +10,7 @@ export function TransformerManagementList({
   onEdit,
   onDelete,
   onReset,
+  onReboot,
 }: {
   transformers: Transformer[];
   selectedId: number | null;
@@ -18,6 +19,7 @@ export function TransformerManagementList({
   onEdit: (t: Transformer) => void;
   onDelete: (t: Transformer) => void;
   onReset: (t: Transformer) => void;
+  onReboot: (t: Transformer) => void;
 }) {
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -100,6 +102,15 @@ export function TransformerManagementList({
                 className="w-full md:w-auto border-amber-200 text-amber-800 hover:bg-amber-50 dark:border-amber-800 dark:text-amber-300"
               >
                 Reset
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() => onReboot(t)}
+                className="w-full md:w-auto border-blue-200 text-blue-800 hover:bg-blue-50 dark:border-blue-800 dark:text-blue-300"
+              >
+                Reboot
               </Button>
               <Button
                 type="button"

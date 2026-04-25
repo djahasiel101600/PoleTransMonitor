@@ -240,7 +240,8 @@ static void syncDeviceProfileFromServer()
 #endif
   bool resetPending = false;
   bool portalPending = false;
-  if (backendClient.fetchDeviceConfig(configMgr.getDeviceApiKey(), configMgr, phone, &resetPending, &portalPending))
+  bool rebootPending = false;
+  if (backendClient.fetchDeviceConfig(configMgr.getDeviceApiKey(), configMgr, phone, &resetPending, &portalPending, &rebootPending))
   {
     // Sync server time while we have a working HTTP connection.
     backendClient.syncServerTime();
@@ -274,6 +275,14 @@ static void syncDeviceProfileFromServer()
       backendClient.begin(configMgr.getBackendUrl(), configMgr.getTransformerId());
       backendClient.ackPortalOpen(configMgr.getDeviceApiKey());
       Serial.println("[INFO] Config portal closed (backend-triggered).");
+    }
+
+    if (rebootPending)
+    {
+      Serial.println("[INFO] Backend requested device reboot. Rebooting...");
+      backendClient.ackReboot(configMgr.getDeviceApiKey());
+      delay(200); // Allow HTTP response to complete before restarting.
+      ESP.restart();
     }
 
 #if DEBUG_SERIAL

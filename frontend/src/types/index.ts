@@ -24,6 +24,8 @@ export interface Transformer {
   last_seen?: string | null;
   /** When true, the device will open its WiFiManager config portal on the next sync */
   pending_open_portal?: boolean;
+  /** When true, the device will reboot on the next device_config sync */
+  pending_reboot?: boolean;
   created_at: string;
 }
 

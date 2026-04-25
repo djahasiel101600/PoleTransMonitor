@@ -376,9 +376,9 @@ class TransformerViewSet(viewsets.ModelViewSet):
 
     def get_permissions(self):
         # The ESP32 device posts readings; we only want admins/staff to manage transformers.
-        if self.action in ["device_config", "ack_energy_reset", "ack_portal_open"]:
+        if self.action in ["device_config", "ack_energy_reset", "ack_portal_open", "ack_reboot"]:
             return [AllowAny()]
-        if self.action in ["create", "update", "partial_update", "destroy", "reset"]:
+        if self.action in ["create", "update", "partial_update", "destroy", "reset", "reboot"]:
             return [IsAuthenticated(), IsAdminUser()]
         return [IsAuthenticated()]
 
@@ -451,6 +451,8 @@ class TransformerViewSet(viewsets.ModelViewSet):
                 "pending_energy_reset": bool(transformer.pending_energy_reset),
                 # Firmware checks this to open the WiFiManager config portal.
                 "pending_open_portal": bool(transformer.pending_open_portal),
+                # Firmware checks this to reboot the device.
+                "pending_reboot": bool(transformer.pending_reboot),
                 # Global SMS templates. Blank = firmware uses its built-in default.
                 "sms_alert_template": sms_settings.alert_template,
                 "sms_status_template": sms_settings.status_template,
@@ -589,6 +591,48 @@ class TransformerViewSet(viewsets.ModelViewSet):
             )
         transformer.pending_open_portal = False
         transformer.save(update_fields=["pending_open_portal"])
+        return Response({"ok": True})
+
+    @action(detail=True, methods=["post"], url_path="reboot")
+    def reboot(self, request, pk=None):
+        """
+        Admin-triggered remote reboot of the ESP32 device.
+        Sets pending_reboot=True; the firmware picks this up on the next
+        device_config sync (within DEVICE_CONFIG_REFRESH_MS) and calls
+        ESP.restart() after acknowledging.
+        """
+        transformer = self.get_object()
+        transformer.pending_reboot = True
+        transformer.save(update_fields=["pending_reboot"])
+        return Response({"ok": True})
+
+    @action(detail=True, methods=["post"], url_path="ack_reboot")
+    def ack_reboot(self, request, pk=None):
+        """
+        Called by firmware just before it calls ESP.restart().
+        Authenticated by X-Device-Key header (same as device_config).
+        Clears the pending_reboot flag so the device does not reboot again
+        on the next config sync.
+        """
+        client_key = (
+            request.headers.get("X-Device-Key")
+            or request.headers.get("X-Device-Token")
+            or ""
+        ).strip()
+        if not client_key:
+            return Response(
+                {"detail": "Missing X-Device-Key header."},
+                status=status.HTTP_401_UNAUTHORIZED,
+            )
+        transformer = get_object_or_404(Transformer.objects.all(), pk=pk)
+        server_key = (transformer.device_api_key or "").strip()
+        if not server_key or not secrets.compare_digest(client_key, server_key):
+            return Response(
+                {"detail": "Invalid device key."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        transformer.pending_reboot = False
+        transformer.save(update_fields=["pending_reboot"])
         return Response({"ok": True})
 
 

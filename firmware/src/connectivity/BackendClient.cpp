@@ -121,7 +121,7 @@ int BackendClient::postReadingWithTimestamp(const ReadingPayload &payload, uint3
 }
 
 bool BackendClient::fetchDeviceConfig(const char *deviceKey, ConfigManager &cm, const char *simPhoneNumber,
-                                      bool *pendingEnergyReset, bool *pendingOpenPortal)
+                                      bool *pendingEnergyReset, bool *pendingOpenPortal, bool *pendingReboot)
 {
   if (WiFi.status() != WL_CONNECTED)
     return false;
@@ -217,7 +217,6 @@ bool BackendClient::fetchDeviceConfig(const char *deviceKey, ConfigManager &cm, 
   }
 
   cm.setActive(isActive);
-  cm.setCachedProfile(nv, nf, ri, rva);
 
   // Transformer name (used to fill {transformer} token in SMS templates).
   {
@@ -239,6 +238,11 @@ bool BackendClient::fetchDeviceConfig(const char *deviceKey, ConfigManager &cm, 
 #endif
   }
 
+  // setCachedProfile calls saveProfileToNvs() which persists name + SMS templates to flash.
+  // It must be called AFTER setTransformerName/setSmsAlertTemplate/setSmsStatusTemplate so
+  // the freshly-fetched values are what gets written to NVS.
+  cm.setCachedProfile(nv, nf, ri, rva);
+
   if (pendingEnergyReset)
   {
     *pendingEnergyReset = doc["pending_energy_reset"] | false;
@@ -247,6 +251,11 @@ bool BackendClient::fetchDeviceConfig(const char *deviceKey, ConfigManager &cm, 
   if (pendingOpenPortal)
   {
     *pendingOpenPortal = doc["pending_open_portal"] | false;
+  }
+
+  if (pendingReboot)
+  {
+    *pendingReboot = doc["pending_reboot"] | false;
   }
 
   return true;
@@ -276,6 +285,22 @@ bool BackendClient::ackPortalOpen(const char *deviceKey)
   HTTPClient http;
   char url[192];
   snprintf(url, sizeof(url), "%s/api/transformers/%d/ack_portal_open/", baseUrl_, transformerId_);
+  http.begin(url);
+  http.addHeader("X-Device-Key", deviceKey);
+  http.addHeader("Content-Type", "application/json");
+  int code = http.POST("{}");
+  http.end();
+  return code >= 200 && code < 300;
+}
+
+bool BackendClient::ackReboot(const char *deviceKey)
+{
+  if (WiFi.status() != WL_CONNECTED)
+    return false;
+
+  HTTPClient http;
+  char url[192];
+  snprintf(url, sizeof(url), "%s/api/transformers/%d/ack_reboot/", baseUrl_, transformerId_);
   http.begin(url);
   http.addHeader("X-Device-Key", deviceKey);
   http.addHeader("Content-Type", "application/json");

@@ -34,6 +34,7 @@ class TransformerSerializer(serializers.ModelSerializer):
             "device_api_key",
             "last_seen",
             "pending_open_portal",
+            "pending_reboot",
             "created_at",
         ]
         read_only_fields = ["created_at", "last_seen"]

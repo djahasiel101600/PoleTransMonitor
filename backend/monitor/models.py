@@ -65,6 +65,9 @@ class Transformer(models.Model):
     # When set, the device should open its WiFiManager config portal on the next
     # device_config sync, then acknowledge back to clear this flag.
     pending_open_portal = models.BooleanField(default=False)
+    # When set, the device should call ESP.restart() on the next device_config
+    # sync, after acknowledging the flag back to the backend.
+    pending_reboot = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

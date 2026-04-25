@@ -213,6 +213,17 @@ export async function resetTransformer(transformerId: number) {
   return res.json() as Promise<{ ok: boolean; energy_kwh_offset: number }>;
 }
 
+export async function rebootTransformer(transformerId: number) {
+  const res = await authFetch(`${API_BASE}/transformers/${transformerId}/reboot/`, {
+    method: "POST",
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(text || "Failed to send reboot command");
+  }
+  return res.json() as Promise<{ ok: boolean }>;
+}
+
 export interface CreateContactPayload {
   owner_name: string;
   phone_number: string;

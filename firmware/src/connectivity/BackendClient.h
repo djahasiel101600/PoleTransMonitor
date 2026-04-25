@@ -35,17 +35,22 @@ public:
    * Fetch device config (nameplate + flags) from the backend.
    * @param pendingEnergyReset  set to true if backend requests a PZEM energy counter reset.
    * @param pendingOpenPortal   set to true if backend requests opening the config portal.
+   * @param pendingReboot       set to true if backend requests a device reboot.
    */
   bool fetchDeviceConfig(const char *deviceKey, ConfigManager &cm,
                          const char *simPhoneNumber,
                          bool *pendingEnergyReset,
-                         bool *pendingOpenPortal = nullptr);
+                         bool *pendingOpenPortal = nullptr,
+                         bool *pendingReboot = nullptr);
 
   /** Acknowledge that the PZEM energy counter has been reset. */
   bool ackEnergyReset(const char *deviceKey);
 
   /** Acknowledge that the config portal has been opened (clears pending_open_portal flag). */
   bool ackPortalOpen(const char *deviceKey);
+
+  /** Acknowledge that a reboot was requested; firmware should call ESP.restart() after this. */
+  bool ackReboot(const char *deviceKey);
 
   /**
    * Fetch the currently active OTA firmware release from the backend.

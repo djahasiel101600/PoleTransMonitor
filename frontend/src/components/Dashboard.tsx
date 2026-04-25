@@ -16,6 +16,7 @@ import { AddTransformerDialog } from "./AddTransformerDialog";
 import { EditTransformerDialog } from "./EditTransformerDialog";
 import { DeleteTransformerDialog } from "./DeleteTransformerDialog";
 import { ResetTransformerDialog } from "./ResetTransformerDialog";
+import { RebootTransformerDialog } from "./RebootTransformerDialog";
 import { TransformerManagementList } from "./TransformerManagementList";
 import { ContactsScreen } from "./ContactsScreen";
 import { Sidebar, type NavKey } from "./layout/Sidebar";
@@ -83,6 +84,10 @@ export function Dashboard() {
   const [resetTargetTransformer, setResetTargetTransformer] =
     useState<Transformer | null>(null);
   const [showResetTransformer, setShowResetTransformer] = useState(false);
+
+  const [rebootTargetTransformer, setRebootTargetTransformer] =
+    useState<Transformer | null>(null);
+  const [showRebootTransformer, setShowRebootTransformer] = useState(false);
 
   const [activeTab, setActiveTab] = useState<NavKey>("monitoring");
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
@@ -411,6 +416,10 @@ export function Dashboard() {
                           setResetTargetTransformer(t);
                           setShowResetTransformer(true);
                         }}
+                        onReboot={(t) => {
+                          setRebootTargetTransformer(t);
+                          setShowRebootTransformer(true);
+                        }}
                       />
                     </div>
                   )}
@@ -498,6 +507,22 @@ export function Dashboard() {
               setSelectedId(null);
               requestAnimationFrame(() => setSelectedId(transformerId));
             })();
+          }}
+        />
+      )}
+      {isAdmin && (
+        <RebootTransformerDialog
+          open={showRebootTransformer}
+          transformer={rebootTargetTransformer}
+          onClose={() => {
+            setShowRebootTransformer(false);
+            setRebootTargetTransformer(null);
+          }}
+          onRebooted={() => {
+            toast(
+              "Reboot command sent. Device will restart shortly.",
+              "success",
+            );
           }}
         />
       )}
