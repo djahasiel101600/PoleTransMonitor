@@ -121,7 +121,9 @@ class Reading(models.Model):
     transformer = models.ForeignKey(
         Transformer, on_delete=models.CASCADE, related_name="readings"
     )
-    timestamp = models.DateTimeField(auto_now_add=True)
+    # default=timezone.now (not auto_now_add) so replayed offline readings
+    # can supply their own past timestamp via the ingest API.
+    timestamp = models.DateTimeField(default=timezone.now)
     voltage = models.FloatField(null=True, blank=True)
     current = models.FloatField(null=True, blank=True)
     apparent_power = models.FloatField(null=True, blank=True)

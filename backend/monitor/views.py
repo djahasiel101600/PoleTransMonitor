@@ -651,6 +651,28 @@ class ReadingViewSet(viewsets.ModelViewSet):
         # Detect unexpected PZEM energy counter rollbacks before persisting.
         _check_energy_rollback(transformer, payload_data.get("energy_kwh"))
 
+        # ------------------------------------------------------------------
+        # Replay path: ESP32 provides a past `timestamp` for readings buffered
+        # offline.  Bypass interval aggregation and WebSocket broadcast since
+        # the data is historical and would confuse live dashboards.
+        # ------------------------------------------------------------------
+        replay_ts = serializer.validated_data.get("timestamp")
+        if replay_ts is not None:
+            reading = Reading.objects.create(
+                transformer=transformer,
+                timestamp=replay_ts,
+                **payload_data,
+            )
+            Transformer.objects.filter(pk=transformer.id).update(last_seen=now)
+            if reading.condition != "normal":
+                Alert.objects.create(
+                    transformer=transformer,
+                    condition=reading.condition,
+                    message=f"[Replayed] Condition: {reading.condition}",
+                    sms_sent=False,
+                )
+            return Response(ReadingSerializer(reading).data, status=status.HTTP_201_CREATED)
+
         interval = int(getattr(transformer, "reading_interval_minutes", 0) or 0)
         if interval <= 0:
             reading = serializer.save()

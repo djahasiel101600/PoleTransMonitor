@@ -26,6 +26,12 @@ public:
   int postReadingWithStatus(const ReadingPayload &payload);
 
   /**
+   * Post a reading with an explicit ISO-8601 UTC timestamp (used when replaying
+   * offline-buffered readings).  Returns the HTTP status code.
+   */
+  int postReadingWithTimestamp(const ReadingPayload &payload, uint32_t epochSec);
+
+  /**
    * Fetch device config (nameplate + flags) from the backend.
    * @param pendingEnergyReset  set to true if backend requests a PZEM energy counter reset.
    * @param pendingOpenPortal   set to true if backend requests opening the config portal.
@@ -47,9 +53,30 @@ public:
    */
   bool fetchCurrentFirmware(char *outVersion, size_t vLen, char *outUrl, size_t uLen);
 
+  /**
+   * GET /api/health/ and record the server's Unix epoch so offline readings can
+   * be stamped with an estimated wall-clock time.
+   * Persists syncEpoch_ + syncMillis_ to NVS so estimates survive a reboot.
+   * Returns true on success.
+   */
+  bool syncServerTime();
+
+  /**
+   * Estimate current Unix epoch based on the last successful syncServerTime().
+   * Returns 0 when no sync has been performed yet.
+   */
+  uint32_t getEstimatedEpoch() const;
+
+  /** Returns the transformer ID this client is configured for. */
+  int getTransformerId() const { return transformerId_; }
+
 private:
   char baseUrl_[128];
   int transformerId_ = 1;
+
+  // Time sync state (set by syncServerTime, persisted to NVS).
+  uint32_t syncEpoch_   = 0; // Server Unix epoch at last sync.
+  uint32_t syncMillis_  = 0; // millis() value at last sync.
 };
 
 #endif

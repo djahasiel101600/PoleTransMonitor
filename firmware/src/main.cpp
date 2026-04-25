@@ -1,5 +1,6 @@
 #include <Arduino.h>
 #include <WiFi.h>
+#include <WiFiClientSecure.h>
 #include <WiFiManager.h>
 #include <HTTPUpdate.h>
 #include <cctype>
@@ -12,6 +13,7 @@
 #include "fault/ThresholdEvaluator.h"
 #include "fault/AlertManager.h"
 #include "connectivity/BackendClient.h"
+#include "storage/OfflineBuffer.h"
 #if ENABLE_SIM
 #include "connectivity/Sim7600Manager.h"
 #endif
@@ -220,6 +222,7 @@ PzemReading pzemRead;
 float oilTempC = NAN;
 SensorData sensorData;
 EvalParams evalParams;
+OfflineBuffer offlineBuffer;
 #if DEBUG_SERIAL
 static bool lastWiFiConnected = false;
 #endif
@@ -239,6 +242,9 @@ static void syncDeviceProfileFromServer()
   bool portalPending = false;
   if (backendClient.fetchDeviceConfig(configMgr.getDeviceApiKey(), configMgr, phone, &resetPending, &portalPending))
   {
+    // Sync server time while we have a working HTTP connection.
+    backendClient.syncServerTime();
+
     EvalParams ep;
     configMgr.fillEvalParams(ep);
     evaluator.setParams(ep);
@@ -302,6 +308,8 @@ void setup()
 #if DEBUG_SERIAL
   Serial.println("[DEBUG] Sensors initialized (PZEM, MAX31865)");
 #endif
+
+  offlineBuffer.begin();
 
   configMgr.load();
   configMgr.fillEvalParams(evalParams);
@@ -419,13 +427,30 @@ void loop()
     return;
   }
 
-  if (WiFi.status() != WL_CONNECTED)
+  // Track WiFi connection state for reconnect rising-edge detection.
+  static bool wasWiFiConnected = false;
+  bool isWiFiConnected = (WiFi.status() == WL_CONNECTED);
+
+  if (!isWiFiConnected)
   {
     static unsigned long lastReconnect = 0;
     if (millis() - lastReconnect >= 10000)
     {
       lastReconnect = millis();
       WiFi.reconnect();
+    }
+    wasWiFiConnected = false;
+  }
+  else if (isWiFiConnected && !wasWiFiConnected)
+  {
+    // Rising edge: WiFi just reconnected.  Replay any buffered offline readings.
+    wasWiFiConnected = true;
+    if (offlineBuffer.hasPending())
+    {
+#if DEBUG_SERIAL
+      Serial.println("[OfflineBuffer] WiFi reconnected — replaying buffered readings");
+#endif
+      offlineBuffer.replayAll(backendClient);
     }
   }
 
@@ -458,7 +483,11 @@ void loop()
         {
           Serial.printf("[OTA] New firmware available: %s (current: %s). Updating...\n",
                         otaVersion, FIRMWARE_VERSION);
-          WiFiClient wifiClient;
+          // Use WiFiClientSecure so OTA works on both HTTP (LAN) and HTTPS (production).
+          // setInsecure() skips cert verification — acceptable for OTA over TLS since
+          // the binary is authenticated by its own hash checked by the bootloader.
+          WiFiClientSecure wifiClient;
+          wifiClient.setInsecure();
           t_httpUpdate_return ret = httpUpdate.update(wifiClient, otaUrl);
           // On HTTP_UPDATE_OK the device reboots automatically.
           // Only log failures; no reboot needed on NO_UPDATES.
@@ -500,12 +529,11 @@ void loop()
   const char *condition = evaluator.evaluate(sensorData);
 
 #if DEBUG_SERIAL
-  bool wifiConnected = (WiFi.status() == WL_CONNECTED);
-  if (wifiConnected && !lastWiFiConnected)
+  if (isWiFiConnected && !lastWiFiConnected)
   {
     Serial.println("[DEBUG] WiFi connected");
   }
-  lastWiFiConnected = wifiConnected;
+  lastWiFiConnected = isWiFiConnected;
 
   Serial.printf("[DEBUG PZEM] raw V=%.2f A=%.3f W=%.1f Wh=%.1f PF=%.2f Hz=%.2f valid=%s\n",
                 pzemRead.voltage, pzemRead.current, pzemRead.power, pzemRead.energy,
@@ -537,22 +565,23 @@ void loop()
                 sensorData.powerFactor, sensorData.frequency, pzemRead.energy, condition);
 #endif
 
-  if (WiFi.status() == WL_CONNECTED && configMgr.isActive())
+  ReadingPayload payload = {
+      .transformerId = configMgr.getTransformerId(),
+      .voltage = sensorData.voltage,
+      .current = sensorData.current,
+      .apparentPower = sensorData.apparentPower,
+      .realPower = pzemRead.valid ? pzemRead.power : (float)NAN,
+      .powerFactor = sensorData.powerFactor,
+      .frequency = sensorData.frequency,
+      .oilTemp = sensorData.oilTemp,
+      .energyKwh = (pzemRead.valid && !isnan(pzemRead.energy) && pzemRead.energy >= 0.0f)
+                       ? pzemRead.energy
+                       : (float)NAN,
+      .condition = condition,
+  };
+
+  if (isWiFiConnected && configMgr.isActive())
   {
-    ReadingPayload payload = {
-        .transformerId = configMgr.getTransformerId(),
-        .voltage = sensorData.voltage,
-        .current = sensorData.current,
-        .apparentPower = sensorData.apparentPower,
-        .realPower = pzemRead.valid ? pzemRead.power : (float)NAN,
-        .powerFactor = sensorData.powerFactor,
-        .frequency = sensorData.frequency,
-        .oilTemp = sensorData.oilTemp,
-        .energyKwh = (pzemRead.valid && !isnan(pzemRead.energy) && pzemRead.energy >= 0.0f)
-                         ? pzemRead.energy
-                         : (float)NAN,
-        .condition = condition,
-    };
     int httpStatus = backendClient.postReadingWithStatus(payload);
 #if DEBUG_SERIAL
     if (httpStatus >= 200 && httpStatus < 300)
@@ -567,6 +596,18 @@ void loop()
     {
       Serial.printf("[DEBUG] POST /api/readings/ failed HTTP %d\n", httpStatus);
     }
+#endif
+  }
+  else if (!isWiFiConnected && configMgr.isActive())
+  {
+    // WiFi is down — buffer this reading to flash for later replay.
+    uint32_t estimatedEpoch = backendClient.getEstimatedEpoch();
+    offlineBuffer.push(payload, estimatedEpoch);
+#if DEBUG_SERIAL
+    if (estimatedEpoch == 0)
+      Serial.println("[DEBUG] Offline: no time reference, reading not buffered");
+    else
+      Serial.printf("[DEBUG] Offline: reading buffered (est epoch=%u)\n", estimatedEpoch);
 #endif
   }
 

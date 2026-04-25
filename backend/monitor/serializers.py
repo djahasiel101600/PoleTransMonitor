@@ -164,11 +164,27 @@ class ReadingCreateSerializer(serializers.ModelSerializer):
     transformer_id = serializers.PrimaryKeyRelatedField(
         queryset=Transformer.objects.all(), source="transformer"
     )
+    # Optional: ESP32 supplies a past timestamp when replaying buffered offline readings.
+    # Omit for live readings so the backend sets timestamp=now automatically.
+    timestamp = serializers.DateTimeField(required=False, default=None)
+
+    def validate_timestamp(self, value):
+        from django.utils import timezone as tz
+        import datetime
+        if value is None:
+            return value
+        now = tz.now()
+        if value > now + datetime.timedelta(seconds=60):
+            raise serializers.ValidationError("timestamp cannot be more than 60 seconds in the future.")
+        if value < now - datetime.timedelta(hours=48):
+            raise serializers.ValidationError("timestamp cannot be more than 48 hours in the past.")
+        return value
 
     class Meta:
         model = Reading
         fields = [
             "transformer_id",
+            "timestamp",
             "voltage",
             "current",
             "apparent_power",

@@ -3,13 +3,31 @@
 #include "config.h"
 #include <ArduinoJson.h>
 #include <HTTPClient.h>
+#include <Preferences.h>
 #include <WiFi.h>
+
+static const char *NVS_BC_NAMESPACE = "ptm_bc";
+static const char *KEY_SYNC_EPOCH   = "time_epoch";
+static const char *KEY_SYNC_MS      = "time_ms";
 
 void BackendClient::begin(const char *baseUrl, int transformerId)
 {
   strncpy(baseUrl_, baseUrl, sizeof(baseUrl_) - 1);
   baseUrl_[sizeof(baseUrl_) - 1] = '\0';
   transformerId_ = transformerId;
+
+  // Restore last time-sync from NVS so we can estimate timestamps after a reboot.
+  Preferences prefs;
+  if (prefs.begin(NVS_BC_NAMESPACE, true))
+  {
+    syncEpoch_  = prefs.getUInt(KEY_SYNC_EPOCH, 0);
+    syncMillis_ = prefs.getUInt(KEY_SYNC_MS,    0);
+    // After a reboot millis() restarts from 0 but syncMillis_ still holds the
+    // old value.  Reset syncMillis_ to 0 so getEstimatedEpoch() starts from
+    // the stored epoch and advances with the new millis() counter.
+    syncMillis_ = 0;
+    prefs.end();
+  }
 }
 
 bool BackendClient::postReading(const ReadingPayload &payload)
@@ -29,7 +47,7 @@ int BackendClient::postReadingWithStatus(const ReadingPayload &payload)
   http.begin(url);
   http.addHeader("Content-Type", "application/json");
 
-  StaticJsonDocument<420> doc;
+  JsonDocument doc;
   doc["transformer_id"] = payload.transformerId;
   doc["voltage"] = payload.voltage;
   doc["current"] = payload.current;
@@ -55,6 +73,48 @@ int BackendClient::postReadingWithStatus(const ReadingPayload &payload)
   char body[420];
   size_t len = serializeJson(doc, body);
 
+  int code = http.POST((uint8_t *)body, len);
+  http.end();
+  return code;
+}
+
+int BackendClient::postReadingWithTimestamp(const ReadingPayload &payload, uint32_t epochSec)
+{
+  if (WiFi.status() != WL_CONNECTED)
+    return -1;
+
+  // Build ISO-8601 UTC timestamp string: "2026-04-25T10:30:00Z"
+  char tsBuf[32];
+  time_t t = (time_t)epochSec;
+  struct tm tmInfo;
+  gmtime_r(&t, &tmInfo);
+  strftime(tsBuf, sizeof(tsBuf), "%Y-%m-%dT%H:%M:%SZ", &tmInfo);
+
+  HTTPClient http;
+  char url[192];
+  snprintf(url, sizeof(url), "%s/api/readings/", baseUrl_);
+  http.begin(url);
+  http.addHeader("Content-Type", "application/json");
+
+  // Use a doc large enough to hold the timestamp string.
+  JsonDocument doc;
+  doc["transformer_id"] = payload.transformerId;
+  doc["timestamp"]      = tsBuf;
+  doc["voltage"]        = payload.voltage;
+  doc["current"]        = payload.current;
+  doc["apparent_power"] = payload.apparentPower;
+  if (!isnan(payload.realPower))
+    doc["real_power"] = payload.realPower >= 0.0f ? payload.realPower : 0.0f;
+  if (!isnan(payload.powerFactor) && payload.powerFactor >= 0.0f && payload.powerFactor <= 1.0f)
+    doc["power_factor"] = payload.powerFactor;
+  doc["frequency"] = payload.frequency;
+  doc["oil_temp"]   = payload.oilTemp;
+  if (!isnan(payload.energyKwh))
+    doc["energy_kwh"] = payload.energyKwh >= 0.0f ? payload.energyKwh : 0.0f;
+  doc["condition"] = payload.condition;
+
+  char body[480];
+  size_t len = serializeJson(doc, body);
   int code = http.POST((uint8_t *)body, len);
   http.end();
   return code;
@@ -91,7 +151,7 @@ bool BackendClient::fetchDeviceConfig(const char *deviceKey, ConfigManager &cm, 
   String payload = http.getString();
   http.end();
 
-  StaticJsonDocument<1280> doc;
+  JsonDocument doc;
   DeserializationError err = deserializeJson(doc, payload);
   if (err)
   {
@@ -244,7 +304,9 @@ bool BackendClient::fetchCurrentFirmware(char *outVersion, size_t vLen, char *ou
   String payload = http.getString();
   http.end();
 
-  StaticJsonDocument<256> doc;
+  // 512 bytes: production URLs (e.g. Render.com) can be 150+ chars and
+  // ArduinoJSON v6 copies string values into the pool.
+  JsonDocument doc;
   DeserializationError err = deserializeJson(doc, payload);
   if (err)
     return false;
@@ -259,4 +321,67 @@ bool BackendClient::fetchCurrentFirmware(char *outVersion, size_t vLen, char *ou
   strncpy(outUrl, dl, uLen - 1);
   outUrl[uLen - 1] = '\0';
   return true;
+}
+
+bool BackendClient::syncServerTime()
+{
+  if (WiFi.status() != WL_CONNECTED)
+    return false;
+
+  HTTPClient http;
+  char url[192];
+  snprintf(url, sizeof(url), "%s/api/health/", baseUrl_);
+  http.begin(url);
+  int code = http.GET();
+  if (code != 200)
+  {
+    http.end();
+    return false;
+  }
+
+  String body = http.getString();
+  http.end();
+
+  JsonDocument doc;
+  if (deserializeJson(doc, body))
+    return false;
+
+  // /api/health/ returns {"timestamp": <float unix epoch>}
+  double ts = doc["timestamp"] | 0.0;
+  if (ts < 1000000000.0)
+    return false; // Sanity check: epoch must be after 2001.
+
+  uint32_t captured = millis();
+  syncEpoch_  = (uint32_t)ts;
+  syncMillis_ = captured;
+
+  // Persist so estimates survive a reboot during the offline period.
+  Preferences prefs;
+  if (prefs.begin(NVS_BC_NAMESPACE, false))
+  {
+    prefs.putUInt(KEY_SYNC_EPOCH, syncEpoch_);
+    // Store 0 for syncMillis_ so after reboot we start from epoch without drift.
+    prefs.putUInt(KEY_SYNC_MS, 0);
+    prefs.end();
+  }
+
+#if DEBUG_SERIAL
+  Serial.printf("[DEBUG] Server time synced: epoch=%u (millis=%u)\n", syncEpoch_, syncMillis_);
+#endif
+  return true;
+}
+
+uint32_t BackendClient::getEstimatedEpoch() const
+{
+  if (syncEpoch_ == 0)
+    return 0; // No sync yet.
+
+  uint32_t now = millis();
+  uint32_t elapsedMs;
+  if (now >= syncMillis_)
+    elapsedMs = now - syncMillis_;
+  else
+    elapsedMs = (0xFFFFFFFFUL - syncMillis_) + now + 1UL; // millis() overflow (~49 days)
+
+  return syncEpoch_ + (elapsedMs / 1000UL);
 }
