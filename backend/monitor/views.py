@@ -34,6 +34,7 @@ from .models import (
     Alert,
     SmsRecipient,
     UserProfile,
+    FirmwareRelease,
 )
 
 logger = logging.getLogger(__name__)
@@ -45,6 +46,7 @@ from .serializers import (
     SmsRecipientSerializer,
     RegisterSerializer,
     UserSerializer,
+    FirmwareReleaseSerializer,
 )
 from .consumers import broadcast_live_reading, broadcast_reading
 
@@ -347,7 +349,7 @@ class TransformerViewSet(viewsets.ModelViewSet):
 
     def get_permissions(self):
         # The ESP32 device posts readings; we only want admins/staff to manage transformers.
-        if self.action in ["device_config", "ack_energy_reset"]:
+        if self.action in ["device_config", "ack_energy_reset", "ack_portal_open"]:
             return [AllowAny()]
         if self.action in ["create", "update", "partial_update", "destroy", "reset"]:
             return [IsAuthenticated(), IsAdminUser()]
@@ -418,6 +420,8 @@ class TransformerViewSet(viewsets.ModelViewSet):
                 ],
                 # Firmware checks this to reset the PZEM hardware energy counter.
                 "pending_energy_reset": bool(transformer.pending_energy_reset),
+                # Firmware checks this to open the WiFiManager config portal.
+                "pending_open_portal": bool(transformer.pending_open_portal),
             }
         )
 
@@ -522,6 +526,34 @@ class TransformerViewSet(viewsets.ModelViewSet):
             )
         transformer.pending_energy_reset = False
         transformer.save(update_fields=["pending_energy_reset"])
+        return Response({"ok": True})
+
+    @action(detail=True, methods=["post"], url_path="ack_portal_open")
+    def ack_portal_open(self, request, pk=None):
+        """
+        Called by firmware after it has successfully opened the config portal.
+        Authenticated by X-Device-Key header (same as device_config).
+        Clears the pending_open_portal flag so the device does not re-open the portal.
+        """
+        client_key = (
+            request.headers.get("X-Device-Key")
+            or request.headers.get("X-Device-Token")
+            or ""
+        ).strip()
+        if not client_key:
+            return Response(
+                {"detail": "Missing X-Device-Key header."},
+                status=status.HTTP_401_UNAUTHORIZED,
+            )
+        transformer = get_object_or_404(Transformer.objects.all(), pk=pk)
+        server_key = (transformer.device_api_key or "").strip()
+        if not server_key or not secrets.compare_digest(client_key, server_key):
+            return Response(
+                {"detail": "Invalid device key."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        transformer.pending_open_portal = False
+        transformer.save(update_fields=["pending_open_portal"])
         return Response({"ok": True})
 
 
@@ -812,3 +844,45 @@ class HealthView(APIView):
             },
             status=http_status,
         )
+
+
+class FirmwareReleaseViewSet(viewsets.ModelViewSet):
+    """
+    OTA firmware management (staff only).
+
+    GET  /api/firmware/          — list all releases
+    POST /api/firmware/          — upload new release (multipart: version + bin_file)
+    GET  /api/firmware/<id>/     — retrieve single release
+    DELETE /api/firmware/<id>/   — delete release
+    POST /api/firmware/<id>/activate/ — set as the active release (only one at a time)
+    GET  /api/firmware/current/  — public; returns {version, url} of active release for firmware polling
+    """
+
+    queryset = FirmwareRelease.objects.all()
+    serializer_class = FirmwareReleaseSerializer
+
+    def get_permissions(self):
+        if self.action == "current":
+            return [AllowAny()]
+        return [IsAuthenticated(), IsAdminUser()]
+
+    @action(detail=False, methods=["get"], url_path="current")
+    def current(self, request):
+        """Return the currently active firmware release for device polling."""
+        release = FirmwareRelease.objects.filter(is_active=True).first()
+        if not release:
+            return Response({"detail": "No active firmware release."}, status=status.HTTP_404_NOT_FOUND)
+        return Response(
+            {
+                "version": release.version,
+                "url": request.build_absolute_uri(release.bin_file.url),
+            }
+        )
+
+    @action(detail=True, methods=["post"], url_path="activate")
+    def activate(self, request, pk=None):
+        """Mark a release as active; all others are automatically deactivated."""
+        release = self.get_object()
+        release.is_active = True
+        release.save()  # save() override handles deactivating others
+        return Response(FirmwareReleaseSerializer(release, context={"request": request}).data)

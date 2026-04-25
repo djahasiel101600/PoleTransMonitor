@@ -61,6 +61,9 @@ class Transformer(models.Model):
     last_seen = models.DateTimeField(null=True, blank=True)
     # 0 means every reading is saved; values > 0 enable interval aggregation.
     reading_interval_minutes = models.PositiveIntegerField(default=0)
+    # When set, the device should open its WiFiManager config portal on the next
+    # device_config sync, then acknowledge back to clear this flag.
+    pending_open_portal = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -86,6 +89,32 @@ CONDITION_CHOICES = [
     ("poor_power_quality", "Poor Power Quality"),
     ("critical", "Critical"),
 ]
+
+
+def _firmware_upload_path(instance, filename):
+    """Store firmware binaries under firmware/<uuid>/<filename> to avoid enumeration."""
+    import uuid
+    return f"firmware/{uuid.uuid4().hex}/{filename}"
+
+
+class FirmwareRelease(models.Model):
+    version = models.CharField(max_length=32, unique=True)
+    bin_file = models.FileField(upload_to=_firmware_upload_path)
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+    is_active = models.BooleanField(default=False)
+
+    class Meta:
+        ordering = ["-uploaded_at"]
+
+    def save(self, *args, **kwargs):
+        if self.is_active:
+            # Only one release may be active at a time.
+            FirmwareRelease.objects.exclude(pk=self.pk).update(is_active=False)
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        active = " [active]" if self.is_active else ""
+        return f"{self.version}{active}"
 
 
 class Reading(models.Model):

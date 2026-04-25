@@ -61,7 +61,7 @@ int BackendClient::postReadingWithStatus(const ReadingPayload &payload)
 }
 
 bool BackendClient::fetchDeviceConfig(const char *deviceKey, ConfigManager &cm, const char *simPhoneNumber,
-                                      bool *pendingEnergyReset)
+                                      bool *pendingEnergyReset, bool *pendingOpenPortal)
 {
   if (WiFi.status() != WL_CONNECTED)
     return false;
@@ -164,6 +164,11 @@ bool BackendClient::fetchDeviceConfig(const char *deviceKey, ConfigManager &cm, 
     *pendingEnergyReset = doc["pending_energy_reset"] | false;
   }
 
+  if (pendingOpenPortal)
+  {
+    *pendingOpenPortal = doc["pending_open_portal"] | false;
+  }
+
   return true;
 }
 
@@ -181,4 +186,57 @@ bool BackendClient::ackEnergyReset(const char *deviceKey)
   int code = http.POST("{}");
   http.end();
   return code >= 200 && code < 300;
+}
+
+bool BackendClient::ackPortalOpen(const char *deviceKey)
+{
+  if (WiFi.status() != WL_CONNECTED)
+    return false;
+
+  HTTPClient http;
+  char url[192];
+  snprintf(url, sizeof(url), "%s/api/transformers/%d/ack_portal_open/", baseUrl_, transformerId_);
+  http.begin(url);
+  http.addHeader("X-Device-Key", deviceKey);
+  http.addHeader("Content-Type", "application/json");
+  int code = http.POST("{}");
+  http.end();
+  return code >= 200 && code < 300;
+}
+
+bool BackendClient::fetchCurrentFirmware(char *outVersion, size_t vLen, char *outUrl, size_t uLen)
+{
+  if (WiFi.status() != WL_CONNECTED)
+    return false;
+
+  HTTPClient http;
+  char url[192];
+  snprintf(url, sizeof(url), "%s/api/firmware/current/", baseUrl_);
+  http.begin(url);
+
+  int code = http.GET();
+  if (code != 200)
+  {
+    http.end();
+    return false;
+  }
+
+  String payload = http.getString();
+  http.end();
+
+  StaticJsonDocument<256> doc;
+  DeserializationError err = deserializeJson(doc, payload);
+  if (err)
+    return false;
+
+  const char *ver = doc["version"] | "";
+  const char *dl = doc["url"] | "";
+  if (!ver[0] || !dl[0])
+    return false;
+
+  strncpy(outVersion, ver, vLen - 1);
+  outVersion[vLen - 1] = '\0';
+  strncpy(outUrl, dl, uLen - 1);
+  outUrl[uLen - 1] = '\0';
+  return true;
 }

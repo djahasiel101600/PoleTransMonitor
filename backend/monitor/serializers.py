@@ -1,6 +1,6 @@
 from django.contrib.auth.models import User
 from rest_framework import serializers
-from .models import Transformer, Reading, Alert, SmsRecipient, UserProfile
+from .models import Transformer, Reading, Alert, SmsRecipient, UserProfile, FirmwareRelease
 
 
 class TransformerSerializer(serializers.ModelSerializer):
@@ -33,6 +33,7 @@ class TransformerSerializer(serializers.ModelSerializer):
             "sms_recipients_ids",
             "device_api_key",
             "last_seen",
+            "pending_open_portal",
             "created_at",
         ]
         read_only_fields = ["created_at", "last_seen"]
@@ -70,6 +71,17 @@ class TransformerSerializer(serializers.ModelSerializer):
             instance.sms_recipients.set(recipients_qs)
 
         return instance
+
+
+class FirmwareReleaseSerializer(serializers.ModelSerializer):
+    """Staff-only serializer for OTA firmware releases."""
+
+    bin_file = serializers.FileField(use_url=True)
+
+    class Meta:
+        model = FirmwareRelease
+        fields = ["id", "version", "bin_file", "uploaded_at", "is_active"]
+        read_only_fields = ["id", "uploaded_at", "is_active"]
 
 
 class SmsRecipientSerializer(serializers.ModelSerializer):

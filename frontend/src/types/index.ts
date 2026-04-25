@@ -22,6 +22,8 @@ export interface Transformer {
   device_api_key?: string | null;
   /** Last time the device posted a reading (ISO string, set by backend) */
   last_seen?: string | null;
+  /** When true, the device will open its WiFiManager config portal on the next sync */
+  pending_open_portal?: boolean;
   created_at: string;
 }
 
@@ -30,6 +32,14 @@ export interface SmsRecipient {
   owner_name: string;
   phone_number: string;
   created_at: string;
+}
+
+export interface FirmwareRelease {
+  id: number;
+  version: string;
+  bin_file: string;
+  uploaded_at: string;
+  is_active: boolean;
 }
 
 export interface Reading {

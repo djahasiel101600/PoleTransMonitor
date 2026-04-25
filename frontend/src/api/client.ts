@@ -161,6 +161,7 @@ export type CreateTransformerPayload = {
   site?: string | null;
   phone_number?: string | null;
   is_active?: boolean;
+  pending_open_portal?: boolean;
   sms_recipients_ids?: number[];
 };
 
@@ -391,5 +392,54 @@ export async function deleteUser(id: number): Promise<void> {
   if (!res.ok) {
     const text = await res.text().catch(() => "");
     throw new Error(text || "Failed to delete user");
+  }
+}
+
+// ---------------------------------------------------------------------------
+// OTA Firmware management (staff only)
+// ---------------------------------------------------------------------------
+
+import type { FirmwareRelease } from "../types";
+
+export async function fetchFirmwareReleases(): Promise<FirmwareRelease[]> {
+  const res = await authFetch(`${API_BASE}/firmware/`, {});
+  if (!res.ok) throw new Error("Failed to fetch firmware releases");
+  return res.json();
+}
+
+export async function uploadFirmwareRelease(
+  version: string,
+  file: File,
+): Promise<FirmwareRelease> {
+  const form = new FormData();
+  form.append("version", version.trim());
+  form.append("bin_file", file);
+  const res = await authFetch(`${API_BASE}/firmware/`, {
+    method: "POST",
+    body: form,
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(text || "Failed to upload firmware");
+  }
+  return res.json();
+}
+
+export async function activateFirmwareRelease(id: number): Promise<FirmwareRelease> {
+  const res = await authFetch(`${API_BASE}/firmware/${id}/activate/`, {
+    method: "POST",
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(text || "Failed to activate firmware release");
+  }
+  return res.json();
+}
+
+export async function deleteFirmwareRelease(id: number): Promise<void> {
+  const res = await authFetch(`${API_BASE}/firmware/${id}/`, { method: "DELETE" });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(text || "Failed to delete firmware release");
   }
 }

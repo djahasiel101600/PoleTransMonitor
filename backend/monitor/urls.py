@@ -8,6 +8,7 @@ router.register("readings", views.ReadingViewSet, basename="reading")
 router.register("alerts", views.AlertViewSet, basename="alert")
 router.register("contacts", views.SmsRecipientViewSet, basename="contact")
 router.register("users", views.UserViewSet, basename="user")
+router.register("firmware", views.FirmwareReleaseViewSet, basename="firmware")
 
 urlpatterns = [
     path("", include(router.urls)),

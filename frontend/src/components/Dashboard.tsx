@@ -32,6 +32,7 @@ import { MonitoringView } from "./dashboard/MonitoringView";
 import { ReportsView } from "./ReportsView";
 import { RegisterDialog } from "./RegisterDialog";
 import { UserManagementScreen } from "./UserManagementScreen";
+import { FirmwarePanel } from "./FirmwarePanel";
 import { useToast } from "../hooks/useToast";
 
 export function Dashboard() {
@@ -66,7 +67,7 @@ export function Dashboard() {
   const [showAddTransformer, setShowAddTransformer] = useState(false);
   const [transformerQuery, setTransformerQuery] = useState("");
   const [managementTab, setManagementTab] = useState<
-    "transformers" | "contacts"
+    "transformers" | "contacts" | "firmware"
   >("transformers");
 
   const [editTransformer, setEditTransformer] = useState<Transformer | null>(
@@ -357,6 +358,18 @@ export function Dashboard() {
                     >
                       Contacts
                     </button>
+                    <button
+                      type="button"
+                      onClick={() => setManagementTab("firmware")}
+                      className={[
+                        "rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
+                        managementTab === "firmware"
+                          ? "bg-background text-foreground shadow-sm"
+                          : "text-muted-foreground hover:text-foreground",
+                      ].join(" ")}
+                    >
+                      Firmware
+                    </button>
                   </div>
 
                   {managementTab === "transformers" && (
@@ -390,6 +403,8 @@ export function Dashboard() {
                   )}
 
                   {managementTab === "contacts" && <ContactsScreen />}
+
+                  {managementTab === "firmware" && <FirmwarePanel />}
                 </>
               ) : (
                 <p className="text-sm text-muted-foreground">

@@ -43,6 +43,7 @@ export function EditTransformerDialog({
   const [site, setSite] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
   const [isActive, setIsActive] = useState<boolean>(true);
+  const [pendingOpenPortal, setPendingOpenPortal] = useState<boolean>(false);
   const [contacts, setContacts] = useState<
     Array<{ id: number; owner_name: string; phone_number: string }>
   >([]);
@@ -65,6 +66,7 @@ export function EditTransformerDialog({
     setSite(transformer.site ?? "");
     setPhoneNumber(transformer.phone_number ?? "");
     setIsActive(transformer.is_active ?? true);
+    setPendingOpenPortal(transformer.pending_open_portal ?? false);
     setSelectedRecipientIds(
       (transformer.sms_recipients ?? []).map((r) => r.id),
     );
@@ -100,6 +102,7 @@ export function EditTransformerDialog({
         site: site.trim().length ? site.trim() : null,
         phone_number: phoneNumber.trim().length ? phoneNumber.trim() : null,
         is_active: isActive,
+        pending_open_portal: pendingOpenPortal,
         sms_recipients_ids: selectedRecipientIds,
       };
 
@@ -149,6 +152,25 @@ export function EditTransformerDialog({
                     <p className="text-xs text-muted-foreground">
                       When deactivated, the server rejects incoming readings and
                       the ESP32 stops sending measurements until reactivated.
+                    </p>
+                  </div>
+
+                  <div className="space-y-1 rounded-md border border-border/80 bg-muted/20 p-3">
+                    <label className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        checked={pendingOpenPortal}
+                        onChange={(e) => setPendingOpenPortal(e.target.checked)}
+                        className="h-4 w-4"
+                      />
+                      <span className="text-sm font-medium text-foreground">
+                        Open config portal on next sync
+                      </span>
+                    </label>
+                    <p className="text-xs text-muted-foreground">
+                      When checked, the ESP32 will open its WiFiManager config portal
+                      on the next device_config sync (within 5 minutes). The flag clears
+                      automatically after the device acknowledges.
                     </p>
                   </div>
                 )}

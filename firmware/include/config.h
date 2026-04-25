@@ -1,6 +1,11 @@
 #ifndef CONFIG_H
 #define CONFIG_H
 
+// Firmware version string — update this with each new build.
+// The backend compares this against the active FirmwareRelease.version to decide
+// whether to push an OTA update to this device.
+#define FIRMWARE_VERSION "1.0.0"
+
 // Transformer nominal values (15 kVA @ 220V)
 #define NOMINAL_VOLTAGE 230.0f
 #define NOMINAL_FREQUENCY 60.0f
@@ -43,6 +48,9 @@
 
 // Re-fetch transformer nameplate from server for ThresholdEvaluator (matches dashboard).
 #define DEVICE_CONFIG_REFRESH_MS (5UL * 60UL * 1000UL)
+
+// Check for OTA firmware updates (separate, less-frequent cadence).
+#define OTA_CHECK_INTERVAL_MS (30UL * 60UL * 1000UL)
 
 // Debug output to Serial (set to 0 to disable)
 #define DEBUG_SERIAL 1

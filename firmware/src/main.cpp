@@ -1,6 +1,7 @@
 #include <Arduino.h>
 #include <WiFi.h>
 #include <WiFiManager.h>
+#include <HTTPUpdate.h>
 #include <cctype>
 #include <cstring>
 #include "config.h"
@@ -105,7 +106,8 @@ static void syncDeviceProfileFromServer()
   const char *phone = nullptr;
 #endif
   bool resetPending = false;
-  if (backendClient.fetchDeviceConfig(configMgr.getDeviceApiKey(), configMgr, phone, &resetPending))
+  bool portalPending = false;
+  if (backendClient.fetchDeviceConfig(configMgr.getDeviceApiKey(), configMgr, phone, &resetPending, &portalPending))
   {
     EvalParams ep;
     configMgr.fillEvalParams(ep);
@@ -126,6 +128,16 @@ static void syncDeviceProfileFromServer()
         Serial.println("[DEBUG] PZEM energy reset FAILED");
 #endif
       }
+    }
+
+    if (portalPending)
+    {
+      Serial.println("[INFO] Backend requested config portal open. Opening...");
+      wm.startConfigPortal("PoleTransMonitor-Setup", "config123");
+      configMgr.load();
+      backendClient.begin(configMgr.getBackendUrl(), configMgr.getTransformerId());
+      backendClient.ackPortalOpen(configMgr.getDeviceApiKey());
+      Serial.println("[INFO] Config portal closed (backend-triggered).");
     }
 
 #if DEBUG_SERIAL
@@ -298,6 +310,40 @@ void loop()
     {
       lastProfileSyncMs = nowMs;
       syncDeviceProfileFromServer();
+    }
+  }
+
+  // OTA firmware check (less frequent than config sync).
+  static unsigned long lastOtaCheckMs = 0;
+  if (WiFi.status() == WL_CONNECTED)
+  {
+    if (nowMs - lastOtaCheckMs >= (unsigned long)OTA_CHECK_INTERVAL_MS)
+    {
+      lastOtaCheckMs = nowMs;
+      char otaVersion[32] = {0};
+      char otaUrl[256] = {0};
+      if (backendClient.fetchCurrentFirmware(otaVersion, sizeof(otaVersion), otaUrl, sizeof(otaUrl)))
+      {
+        if (strcmp(otaVersion, FIRMWARE_VERSION) != 0)
+        {
+          Serial.printf("[OTA] New firmware available: %s (current: %s). Updating...\n",
+                        otaVersion, FIRMWARE_VERSION);
+          WiFiClient wifiClient;
+          t_httpUpdate_return ret = httpUpdate.update(wifiClient, otaUrl);
+          // On HTTP_UPDATE_OK the device reboots automatically.
+          // Only log failures; no reboot needed on NO_UPDATES.
+          if (ret == HTTP_UPDATE_FAILED)
+          {
+            Serial.printf("[OTA] Update failed: %s\n", httpUpdate.getLastErrorString().c_str());
+          }
+        }
+#if DEBUG_SERIAL
+        else
+        {
+          Serial.printf("[OTA] Firmware up to date (%s).\n", FIRMWARE_VERSION);
+        }
+#endif
+      }
     }
   }
 
