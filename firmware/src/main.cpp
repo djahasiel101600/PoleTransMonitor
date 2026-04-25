@@ -3,6 +3,7 @@
 #include <WiFiManager.h>
 #include <HTTPUpdate.h>
 #include <cctype>
+#include <cmath>
 #include <cstring>
 #include "config.h"
 #include "config/ConfigManager.h"
@@ -14,6 +15,135 @@
 #if ENABLE_SIM
 #include "connectivity/Sim7600Manager.h"
 #endif
+
+// ---------------------------------------------------------------------------
+// SMS template renderer
+//
+// Walks `tpl` and substitutes {token} placeholders with live sensor values.
+// Returns true when rendered successfully (template was non-empty).
+// Returns false when `tpl` is empty so the caller can use its built-in default.
+//
+// Supported tokens: {transformer}, {voltage}, {current}, {apparent_power},
+//   {real_power}, {power_factor}, {frequency}, {energy_kwh}, {oil_temp},
+//   {condition}
+// ---------------------------------------------------------------------------
+struct _SmsCtx
+{
+  const char *transformerName;
+  float voltage;
+  float current;
+  float apparentPower;
+  float realPower;
+  float powerFactor;
+  float frequency;
+  float energyKwh;
+  float oilTemp;
+  const char *condition;
+};
+
+static void _fmtFloat(char *buf, size_t len, float v, const char *fmt, float sentinel = -1e9f)
+{
+  if (isnan(v) || v <= sentinel)
+    strncpy(buf, "n/a", len);
+  else
+    snprintf(buf, len, fmt, (double)v);
+  buf[len - 1] = '\0';
+}
+
+static bool _renderSmsTemplate(char *out, size_t outLen, const char *tpl,
+                               const _SmsCtx &ctx)
+{
+  if (!tpl || !tpl[0])
+    return false;
+
+  size_t pos = 0;
+  const char *p = tpl;
+
+  while (*p && pos < outLen - 1)
+  {
+    if (*p != '{')
+    {
+      out[pos++] = *p++;
+      continue;
+    }
+
+    // Find closing '}'
+    const char *start = p + 1;
+    const char *end = start;
+    while (*end && *end != '}')
+      end++;
+    if (!*end)
+    {
+      // No closing brace — copy literally.
+      out[pos++] = *p++;
+      continue;
+    }
+
+    size_t tokenLen = (size_t)(end - start);
+    char token[32] = {0};
+    if (tokenLen < sizeof(token))
+      memcpy(token, start, tokenLen);
+
+    char val[32] = {0};
+    if (strcmp(token, "transformer") == 0)
+    {
+      strncpy(val, ctx.transformerName && ctx.transformerName[0] ? ctx.transformerName : "?",
+              sizeof(val) - 1);
+    }
+    else if (strcmp(token, "voltage") == 0)
+    {
+      _fmtFloat(val, sizeof(val), ctx.voltage, "%.1f");
+    }
+    else if (strcmp(token, "current") == 0)
+    {
+      _fmtFloat(val, sizeof(val), ctx.current, "%.2f");
+    }
+    else if (strcmp(token, "apparent_power") == 0)
+    {
+      _fmtFloat(val, sizeof(val), ctx.apparentPower, "%.0f");
+    }
+    else if (strcmp(token, "real_power") == 0)
+    {
+      _fmtFloat(val, sizeof(val), ctx.realPower, "%.1f");
+    }
+    else if (strcmp(token, "power_factor") == 0)
+    {
+      _fmtFloat(val, sizeof(val), ctx.powerFactor, "%.2f");
+    }
+    else if (strcmp(token, "frequency") == 0)
+    {
+      _fmtFloat(val, sizeof(val), ctx.frequency, "%.1f");
+    }
+    else if (strcmp(token, "energy_kwh") == 0)
+    {
+      _fmtFloat(val, sizeof(val), ctx.energyKwh, "%.2f");
+    }
+    else if (strcmp(token, "oil_temp") == 0)
+    {
+      _fmtFloat(val, sizeof(val), ctx.oilTemp, "%.1f");
+    }
+    else if (strcmp(token, "condition") == 0)
+    {
+      strncpy(val, ctx.condition && ctx.condition[0] ? ctx.condition : "?", sizeof(val) - 1);
+    }
+    else
+    {
+      // Unknown token — copy literally including braces.
+      snprintf(val, sizeof(val), "{%s}", token);
+    }
+    val[sizeof(val) - 1] = '\0';
+
+    size_t vLen = strlen(val);
+    if (pos + vLen >= outLen)
+      break;
+    memcpy(out + pos, val, vLen);
+    pos += vLen;
+    p = end + 1; // skip past '}'
+  }
+
+  out[pos] = '\0';
+  return true;
+}
 
 PzemSensor pzem;
 OilTempSensor oilTemp;
@@ -163,7 +293,7 @@ void setup()
 {
   Serial.begin(115200);
   delay(1000);
-  Serial.println("PoleTransMonitor starting, this version next...");
+  Serial.println("PoleTransMonitor starting, this version next1...");
 
   pinMode(PORTAL_BUTTON_GPIO, INPUT_PULLUP);
 
@@ -443,8 +573,31 @@ void loop()
 #if ENABLE_SIM
   if (configMgr.isActive() && alertMgr.shouldSendSms(condition))
   {
-    char msg[128];
-    snprintf(msg, sizeof(msg), "PoleTransMonitor ALERT: %s", condition);
+    char msg[320];
+    // Build render context from current sensor values.
+    _SmsCtx smsCtx = {
+        .transformerName = configMgr.getTransformerName(),
+        .voltage = sensorData.voltage,
+        .current = sensorData.current,
+        .apparentPower = sensorData.apparentPower,
+        .realPower = (pzemRead.valid && !isnan(pzemRead.power) && pzemRead.power >= 0.0f)
+                         ? pzemRead.power
+                         : NAN,
+        .powerFactor = sensorData.powerFactor,
+        .frequency = sensorData.frequency,
+        .energyKwh = (pzemRead.valid && !isnan(pzemRead.energy) && pzemRead.energy >= 0.0f)
+                         ? pzemRead.energy
+                         : NAN,
+        .oilTemp = sensorData.oilTemp,
+        .condition = condition,
+    };
+
+    if (!_renderSmsTemplate(msg, sizeof(msg), configMgr.getSmsAlertTemplate(), smsCtx))
+    {
+      // Blank template — use firmware built-in default.
+      snprintf(msg, sizeof(msg), "PoleTransMonitor ALERT: %s", condition);
+    }
+
     bool anyOk = false;
 
     const char *csv = configMgr.getSmsRecipientsCsv();
@@ -528,40 +681,43 @@ void loop()
 #if DEBUG_SERIAL
         Serial.printf("[DEBUG] Sending status reply to %s\n", sender);
 #endif
-        // Format electrical parameters for SMS (single segment; n/a for invalid)
-        char statusMsg[220];
-        char v[12], a[12], va[12], w[12], pf[12], hz[12], kwh[12];
-        if (!isnan(sensorData.voltage))
-          snprintf(v, sizeof(v), "%.1f", sensorData.voltage);
-        else
-          strcpy(v, "n/a");
-        if (!isnan(sensorData.current))
-          snprintf(a, sizeof(a), "%.2f", sensorData.current);
-        else
-          strcpy(a, "n/a");
-        if (!isnan(sensorData.apparentPower))
-          snprintf(va, sizeof(va), "%.0f", sensorData.apparentPower);
-        else
-          strcpy(va, "n/a");
-        if (pzemRead.valid && !isnan(pzemRead.power) && pzemRead.power >= 0.0f)
-          snprintf(w, sizeof(w), "%.1f", pzemRead.power);
-        else
-          strcpy(w, "n/a");
-        if (!isnan(sensorData.powerFactor))
-          snprintf(pf, sizeof(pf), "%.2f", sensorData.powerFactor);
-        else
-          strcpy(pf, "n/a");
-        if (!isnan(sensorData.frequency))
-          snprintf(hz, sizeof(hz), "%.1f", sensorData.frequency);
-        else
-          strcpy(hz, "n/a");
-        if (pzemRead.valid && !isnan(pzemRead.energy) && pzemRead.energy >= 0.0f)
-          snprintf(kwh, sizeof(kwh), "%.2f", pzemRead.energy);
-        else
-          strcpy(kwh, "n/a");
-        snprintf(statusMsg, sizeof(statusMsg),
-                 "Voltage: %s\nCurrent: %s\nApparent Power: %s\nReal Power: %s W\nPower Factor: %s\nFrequency: %s\nEnergy: %s kWh\nStatus: %s",
-                 v, a, va, w, pf, hz, kwh, condition ? condition : "?");
+        char statusMsg[320];
+        _SmsCtx statusCtx = {
+            .transformerName = configMgr.getTransformerName(),
+            .voltage = sensorData.voltage,
+            .current = sensorData.current,
+            .apparentPower = sensorData.apparentPower,
+            .realPower = (pzemRead.valid && !isnan(pzemRead.power) && pzemRead.power >= 0.0f)
+                             ? pzemRead.power
+                             : NAN,
+            .powerFactor = sensorData.powerFactor,
+            .frequency = sensorData.frequency,
+            .energyKwh = (pzemRead.valid && !isnan(pzemRead.energy) && pzemRead.energy >= 0.0f)
+                             ? pzemRead.energy
+                             : NAN,
+            .oilTemp = sensorData.oilTemp,
+            .condition = condition,
+        };
+
+        if (!_renderSmsTemplate(statusMsg, sizeof(statusMsg),
+                                configMgr.getSmsStatusTemplate(), statusCtx))
+        {
+          // Blank template — use firmware built-in default.
+          char v[12], a[12], va_[12], w[12], pf[12], hz[12], kwh[12], ot[12];
+          _fmtFloat(v, sizeof(v), sensorData.voltage, "%.1f");
+          _fmtFloat(a, sizeof(a), sensorData.current, "%.2f");
+          _fmtFloat(va_, sizeof(va_), sensorData.apparentPower, "%.0f");
+          _fmtFloat(w, sizeof(w), statusCtx.realPower, "%.1f");
+          _fmtFloat(pf, sizeof(pf), sensorData.powerFactor, "%.2f");
+          _fmtFloat(hz, sizeof(hz), sensorData.frequency, "%.1f");
+          _fmtFloat(kwh, sizeof(kwh), statusCtx.energyKwh, "%.2f");
+          _fmtFloat(ot, sizeof(ot), sensorData.oilTemp, "%.1f");
+          snprintf(statusMsg, sizeof(statusMsg),
+                   "Voltage: %s V\nCurrent: %s A\nApparent Power: %s VA\n"
+                   "Real Power: %s W\nPower Factor: %s\nFrequency: %s Hz\n"
+                   "Energy: %s kWh\nOil Temp: %s C\nStatus: %s",
+                   v, a, va_, w, pf, hz, kwh, ot, condition ? condition : "?");
+        }
         if (sim7600.sendSms(sender, statusMsg))
         {
 #if DEBUG_SERIAL

@@ -1,6 +1,6 @@
 from django.contrib.auth.models import User
 from rest_framework import serializers
-from .models import Transformer, Reading, Alert, SmsRecipient, UserProfile, FirmwareRelease
+from .models import Transformer, Reading, Alert, SmsRecipient, UserProfile, FirmwareRelease, SmsSettings
 
 
 class TransformerSerializer(serializers.ModelSerializer):
@@ -227,3 +227,9 @@ class UserSerializer(serializers.ModelSerializer):
             return obj.profile.is_approved
         except UserProfile.DoesNotExist:
             return False
+
+
+class SmsSettingsSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = SmsSettings
+        fields = ["alert_template", "status_template"]

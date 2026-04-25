@@ -91,7 +91,7 @@ bool BackendClient::fetchDeviceConfig(const char *deviceKey, ConfigManager &cm, 
   String payload = http.getString();
   http.end();
 
-  StaticJsonDocument<768> doc;
+  StaticJsonDocument<1280> doc;
   DeserializationError err = deserializeJson(doc, payload);
   if (err)
   {
@@ -158,6 +158,26 @@ bool BackendClient::fetchDeviceConfig(const char *deviceKey, ConfigManager &cm, 
 
   cm.setActive(isActive);
   cm.setCachedProfile(nv, nf, ri, rva);
+
+  // Transformer name (used to fill {transformer} token in SMS templates).
+  {
+    const char *name = doc["name"] | "";
+    cm.setTransformerName(name);
+  }
+
+  // Global SMS templates from backend. Empty string = use firmware built-in default.
+  {
+    const char *alertTpl = doc["sms_alert_template"] | "";
+    cm.setSmsAlertTemplate(alertTpl);
+    const char *statusTpl = doc["sms_status_template"] | "";
+    cm.setSmsStatusTemplate(statusTpl);
+#if DEBUG_SERIAL
+    if (alertTpl && alertTpl[0])
+      Serial.printf("[DEBUG] SMS alert template: %s\n", alertTpl);
+    if (statusTpl && statusTpl[0])
+      Serial.printf("[DEBUG] SMS status template: %s\n", statusTpl);
+#endif
+  }
 
   if (pendingEnergyReset)
   {

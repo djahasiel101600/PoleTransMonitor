@@ -33,6 +33,7 @@ import { ReportsView } from "./ReportsView";
 import { RegisterDialog } from "./RegisterDialog";
 import { UserManagementScreen } from "./UserManagementScreen";
 import { FirmwarePanel } from "./FirmwarePanel";
+import { SmsTemplatePanel } from "./SmsTemplatePanel";
 import { useToast } from "../hooks/useToast";
 
 export function Dashboard() {
@@ -67,7 +68,7 @@ export function Dashboard() {
   const [showAddTransformer, setShowAddTransformer] = useState(false);
   const [transformerQuery, setTransformerQuery] = useState("");
   const [managementTab, setManagementTab] = useState<
-    "transformers" | "contacts" | "firmware"
+    "transformers" | "contacts" | "firmware" | "sms_templates"
   >("transformers");
 
   const [editTransformer, setEditTransformer] = useState<Transformer | null>(
@@ -370,6 +371,18 @@ export function Dashboard() {
                     >
                       Firmware
                     </button>
+                    <button
+                      type="button"
+                      onClick={() => setManagementTab("sms_templates")}
+                      className={[
+                        "rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
+                        managementTab === "sms_templates"
+                          ? "bg-background text-foreground shadow-sm"
+                          : "text-muted-foreground hover:text-foreground",
+                      ].join(" ")}
+                    >
+                      SMS Templates
+                    </button>
                   </div>
 
                   {managementTab === "transformers" && (
@@ -405,6 +418,8 @@ export function Dashboard() {
                   {managementTab === "contacts" && <ContactsScreen />}
 
                   {managementTab === "firmware" && <FirmwarePanel />}
+
+                  {managementTab === "sms_templates" && <SmsTemplatePanel />}
                 </>
               ) : (
                 <p className="text-sm text-muted-foreground">

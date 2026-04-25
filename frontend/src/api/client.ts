@@ -400,6 +400,7 @@ export async function deleteUser(id: number): Promise<void> {
 // ---------------------------------------------------------------------------
 
 import type { FirmwareRelease } from "../types";
+import type { SmsSettings } from "../types";
 
 export async function fetchFirmwareReleases(): Promise<FirmwareRelease[]> {
   const res = await authFetch(`${API_BASE}/firmware/`, {});
@@ -442,4 +443,29 @@ export async function deleteFirmwareRelease(id: number): Promise<void> {
     const text = await res.text().catch(() => "");
     throw new Error(text || "Failed to delete firmware release");
   }
+}
+
+// ---------------------------------------------------------------------------
+// SMS Settings
+// ---------------------------------------------------------------------------
+
+export async function fetchSmsSettings(): Promise<SmsSettings> {
+  const res = await authFetch(`${API_BASE}/sms-settings/`, {});
+  if (!res.ok) throw new Error("Failed to fetch SMS settings");
+  return res.json();
+}
+
+export async function updateSmsSettings(
+  payload: Partial<SmsSettings>,
+): Promise<SmsSettings> {
+  const res = await authFetch(`${API_BASE}/sms-settings/`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(text || "Failed to update SMS settings");
+  }
+  return res.json();
 }

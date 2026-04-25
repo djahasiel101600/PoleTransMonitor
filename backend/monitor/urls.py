@@ -14,4 +14,5 @@ urlpatterns = [
     path("", include(router.urls)),
     path("health/", views.HealthView.as_view(), name="api_health"),
     path("register/", views.RegisterView.as_view(), name="api_register"),
+    path("sms-settings/", views.SmsSettingsView.as_view(), name="sms_settings"),
 ]

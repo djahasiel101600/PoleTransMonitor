@@ -192,6 +192,51 @@ class Alert(models.Model):
         return f"{self.transformer.name} - {self.condition} @ {self.timestamp}"
 
 
+class SmsSettings(models.Model):
+    """Global singleton holding the SMS templates for alert and status replies.
+
+    When a template is blank the firmware falls back to its built-in hardcoded
+    message, preserving full backward compatibility.
+
+    Supported tokens (substituted by firmware): {transformer}, {voltage},
+    {current}, {apparent_power}, {real_power}, {power_factor}, {frequency},
+    {energy_kwh}, {oil_temp}, {condition}.
+    """
+
+    alert_template = models.CharField(
+        max_length=220,
+        blank=True,
+        default="",
+        help_text=(
+            "SMS body for fault alerts. Leave blank to use the firmware default. "
+            "Available tokens: {transformer}, {voltage}, {current}, {apparent_power}, "
+            "{real_power}, {power_factor}, {frequency}, {energy_kwh}, {oil_temp}, {condition}."
+        ),
+    )
+    status_template = models.CharField(
+        max_length=220,
+        blank=True,
+        default="",
+        help_text=(
+            "SMS body for status-reply responses. Leave blank to use the firmware default. "
+            "Available tokens: {transformer}, {voltage}, {current}, {apparent_power}, "
+            "{real_power}, {power_factor}, {frequency}, {energy_kwh}, {oil_temp}, {condition}."
+        ),
+    )
+
+    class Meta:
+        verbose_name = "SMS Settings"
+        verbose_name_plural = "SMS Settings"
+
+    @classmethod
+    def get_or_create_singleton(cls):
+        obj, _ = cls.objects.get_or_create(pk=1)
+        return obj
+
+    def __str__(self):
+        return "SMS Settings"
+
+
 class UserProfile(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name="profile")
     is_approved = models.BooleanField(default=False)

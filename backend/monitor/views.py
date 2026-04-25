@@ -35,6 +35,7 @@ from .models import (
     SmsRecipient,
     UserProfile,
     FirmwareRelease,
+    SmsSettings,
 )
 
 logger = logging.getLogger(__name__)
@@ -47,6 +48,7 @@ from .serializers import (
     RegisterSerializer,
     UserSerializer,
     FirmwareReleaseSerializer,
+    SmsSettingsSerializer,
 )
 from .consumers import broadcast_live_reading, broadcast_reading, _check_energy_rollback
 
@@ -343,6 +345,31 @@ def _compute_insights_from_reading(reading, transformer):
     }
 
 
+# ---------------------------------------------------------------------------
+# SMS template settings (global singleton)
+# ---------------------------------------------------------------------------
+
+class SmsSettingsView(APIView):
+    """GET/PATCH the global SMS templates used by the firmware for alerts and status replies."""
+
+    def get_permissions(self):
+        if self.request.method in ("PATCH", "PUT"):
+            return [IsAuthenticated(), IsAdminUser()]
+        return [IsAuthenticated()]
+
+    def get(self, request):
+        settings_obj = SmsSettings.get_or_create_singleton()
+        return Response(SmsSettingsSerializer(settings_obj).data)
+
+    def patch(self, request):
+        settings_obj = SmsSettings.get_or_create_singleton()
+        serializer = SmsSettingsSerializer(settings_obj, data=request.data, partial=True)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        serializer.save()
+        return Response(serializer.data)
+
+
 class TransformerViewSet(viewsets.ModelViewSet):
     queryset = Transformer.objects.all()
     serializer_class = TransformerSerializer
@@ -403,6 +430,8 @@ class TransformerViewSet(viewsets.ModelViewSet):
             transformer.phone_number = sim_phone
             transformer.save(update_fields=["phone_number"])
 
+        sms_settings = SmsSettings.get_or_create_singleton()
+
         return Response(
             {
                 "transformer_id": transformer.id,
@@ -422,6 +451,9 @@ class TransformerViewSet(viewsets.ModelViewSet):
                 "pending_energy_reset": bool(transformer.pending_energy_reset),
                 # Firmware checks this to open the WiFiManager config portal.
                 "pending_open_portal": bool(transformer.pending_open_portal),
+                # Global SMS templates. Blank = firmware uses its built-in default.
+                "sms_alert_template": sms_settings.alert_template,
+                "sms_status_template": sms_settings.status_template,
             }
         )
 
