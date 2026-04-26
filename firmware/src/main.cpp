@@ -621,7 +621,87 @@ void loop()
   }
 
 #if ENABLE_SIM
-  if (configMgr.isActive() && alertMgr.shouldSendSms(condition))
+  // Process incoming STATUS command first so we can suppress the alert broadcast
+  // on the same tick. Without this guard, a STATUS reply and an alert firing in
+  // the same 5-second cycle made it appear as though sending "STATUS" triggered
+  // a broadcast to all recipients.  The alert debounce is NOT advanced here so
+  // any pending alert fires normally on the very next cycle.
+  bool statusReplied = false;
+#if defined(ENABLE_SMS_STATUS_REPLY) && ENABLE_SMS_STATUS_REPLY
+  {
+    char sender[32];
+    char body[128];
+    if (sim7600.pollIncomingSms(sender, sizeof(sender), body, sizeof(body)))
+    {
+#if DEBUG_SERIAL
+      Serial.printf("[DEBUG] Incoming SMS from %s body=\"%s\"\n", sender, body);
+#endif
+      // Case-insensitive match of body to status command (trimmed body already from pollIncomingSms)
+      char cmd[32];
+      size_t i = 0;
+      while (body[i] && i < sizeof(cmd) - 1)
+      {
+        cmd[i] = (char)toupper((unsigned char)body[i]);
+        i++;
+      }
+      cmd[i] = '\0';
+      if (strcmp(cmd, SMS_STATUS_COMMAND) == 0)
+      {
+#if DEBUG_SERIAL
+        Serial.printf("[DEBUG] Sending status reply to %s\n", sender);
+#endif
+        char statusMsg[320];
+        _SmsCtx statusCtx = {
+            .transformerName = configMgr.getTransformerName(),
+            .voltage = sensorData.voltage,
+            .current = sensorData.current,
+            .apparentPower = sensorData.apparentPower,
+            .realPower = (pzemRead.valid && !isnan(pzemRead.power) && pzemRead.power >= 0.0f)
+                             ? pzemRead.power
+                             : NAN,
+            .powerFactor = sensorData.powerFactor,
+            .frequency = sensorData.frequency,
+            .energyKwh = (pzemRead.valid && !isnan(pzemRead.energy) && pzemRead.energy >= 0.0f)
+                             ? pzemRead.energy
+                             : NAN,
+            .oilTemp = sensorData.oilTemp,
+            .condition = condition,
+        };
+
+        if (!_renderSmsTemplate(statusMsg, sizeof(statusMsg),
+                                configMgr.getSmsStatusTemplate(), statusCtx))
+        {
+          // Blank template — use firmware built-in default.
+          char v[12], a[12], va_[12], w[12], pf[12], hz[12], kwh[12], ot[12];
+          _fmtFloat(v, sizeof(v), sensorData.voltage, "%.1f");
+          _fmtFloat(a, sizeof(a), sensorData.current, "%.2f");
+          _fmtFloat(va_, sizeof(va_), sensorData.apparentPower, "%.0f");
+          _fmtFloat(w, sizeof(w), statusCtx.realPower, "%.1f");
+          _fmtFloat(pf, sizeof(pf), sensorData.powerFactor, "%.2f");
+          _fmtFloat(hz, sizeof(hz), sensorData.frequency, "%.1f");
+          _fmtFloat(kwh, sizeof(kwh), statusCtx.energyKwh, "%.2f");
+          _fmtFloat(ot, sizeof(ot), sensorData.oilTemp, "%.1f");
+          snprintf(statusMsg, sizeof(statusMsg),
+                   "Voltage: %s V\nCurrent: %s A\nApparent Power: %s VA\n"
+                   "Real Power: %s W\nPower Factor: %s\nFrequency: %s Hz\n"
+                   "Energy: %s kWh\nOil Temp: %s C\nStatus: %s",
+                   v, a, va_, w, pf, hz, kwh, ot, condition ? condition : "?");
+        }
+        if (sim7600.sendSms(sender, statusMsg))
+        {
+          statusReplied = true;
+#if DEBUG_SERIAL
+          Serial.printf("[DEBUG] Status SMS sent to %s\n", sender);
+#endif
+        }
+      }
+    }
+  }
+#endif
+
+  // Skip the alert broadcast on the same tick where a STATUS reply was sent.
+  // The debounce timer is untouched so the alert fires on the next cycle if needed.
+  if (!statusReplied && configMgr.isActive() && alertMgr.shouldSendSms(condition))
   {
     char msg[320];
     // Build render context from current sensor values.
@@ -707,76 +787,5 @@ void loop()
     if (anyOk)
       alertMgr.markSent(condition);
   }
-
-#if defined(ENABLE_SMS_STATUS_REPLY) && ENABLE_SMS_STATUS_REPLY
-  {
-    char sender[32];
-    char body[128];
-    if (sim7600.pollIncomingSms(sender, sizeof(sender), body, sizeof(body)))
-    {
-#if DEBUG_SERIAL
-      Serial.printf("[DEBUG] Incoming SMS from %s body=\"%s\"\n", sender, body);
-#endif
-      // Case-insensitive match of body to status command (trimmed body already from pollIncomingSms)
-      char cmd[32];
-      size_t i = 0;
-      while (body[i] && i < sizeof(cmd) - 1)
-      {
-        cmd[i] = (char)toupper((unsigned char)body[i]);
-        i++;
-      }
-      cmd[i] = '\0';
-      if (strcmp(cmd, SMS_STATUS_COMMAND) == 0)
-      {
-#if DEBUG_SERIAL
-        Serial.printf("[DEBUG] Sending status reply to %s\n", sender);
-#endif
-        char statusMsg[320];
-        _SmsCtx statusCtx = {
-            .transformerName = configMgr.getTransformerName(),
-            .voltage = sensorData.voltage,
-            .current = sensorData.current,
-            .apparentPower = sensorData.apparentPower,
-            .realPower = (pzemRead.valid && !isnan(pzemRead.power) && pzemRead.power >= 0.0f)
-                             ? pzemRead.power
-                             : NAN,
-            .powerFactor = sensorData.powerFactor,
-            .frequency = sensorData.frequency,
-            .energyKwh = (pzemRead.valid && !isnan(pzemRead.energy) && pzemRead.energy >= 0.0f)
-                             ? pzemRead.energy
-                             : NAN,
-            .oilTemp = sensorData.oilTemp,
-            .condition = condition,
-        };
-
-        if (!_renderSmsTemplate(statusMsg, sizeof(statusMsg),
-                                configMgr.getSmsStatusTemplate(), statusCtx))
-        {
-          // Blank template — use firmware built-in default.
-          char v[12], a[12], va_[12], w[12], pf[12], hz[12], kwh[12], ot[12];
-          _fmtFloat(v, sizeof(v), sensorData.voltage, "%.1f");
-          _fmtFloat(a, sizeof(a), sensorData.current, "%.2f");
-          _fmtFloat(va_, sizeof(va_), sensorData.apparentPower, "%.0f");
-          _fmtFloat(w, sizeof(w), statusCtx.realPower, "%.1f");
-          _fmtFloat(pf, sizeof(pf), sensorData.powerFactor, "%.2f");
-          _fmtFloat(hz, sizeof(hz), sensorData.frequency, "%.1f");
-          _fmtFloat(kwh, sizeof(kwh), statusCtx.energyKwh, "%.2f");
-          _fmtFloat(ot, sizeof(ot), sensorData.oilTemp, "%.1f");
-          snprintf(statusMsg, sizeof(statusMsg),
-                   "Voltage: %s V\nCurrent: %s A\nApparent Power: %s VA\n"
-                   "Real Power: %s W\nPower Factor: %s\nFrequency: %s Hz\n"
-                   "Energy: %s kWh\nOil Temp: %s C\nStatus: %s",
-                   v, a, va_, w, pf, hz, kwh, ot, condition ? condition : "?");
-        }
-        if (sim7600.sendSms(sender, statusMsg))
-        {
-#if DEBUG_SERIAL
-          Serial.printf("[DEBUG] Status SMS sent to %s\n", sender);
-#endif
-        }
-      }
-    }
-  }
-#endif
 #endif
 }

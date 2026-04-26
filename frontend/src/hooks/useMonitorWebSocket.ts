@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from "react";
+import { refreshAccessToken } from "../api/client";
 import type { Reading } from "../types";
 
 /** If no reading arrives within this window, mark the device as stale. */
@@ -47,7 +48,12 @@ export function useMonitorWebSocket(transformerId: number | null, accessToken?: 
     if (transformerId == null) return;
     shouldReconnectRef.current = true;
 
-    const connect = () => {
+    const connect = async () => {
+      // Proactively refresh the access token before embedding it in the WS URL.
+      // This handles the case where the token expired while the socket was down
+      // (e.g. network blip) and authFetch never had a chance to refresh it.
+      await refreshAccessToken();
+
       const token = resolveAccessToken();
 
       // If there is no valid access token, don't attempt to connect.
@@ -85,7 +91,7 @@ export function useMonitorWebSocket(transformerId: number | null, accessToken?: 
         setDeviceOnline(false);
         if (staleTimerRef.current != null) clearTimeout(staleTimerRef.current);
         if (!shouldReconnectRef.current) return;
-        reconnectRef.current = window.setTimeout(connect, 3000);
+        reconnectRef.current = window.setTimeout(() => { void connect(); }, 3000);
       };
       ws.onerror = () => ws.close();
       ws.onmessage = (e) => {
@@ -101,7 +107,7 @@ export function useMonitorWebSocket(transformerId: number | null, accessToken?: 
       };
     };
 
-    connect();
+    void connect();
     return () => {
       shouldReconnectRef.current = false;
       if (reconnectRef.current != null) clearTimeout(reconnectRef.current);
