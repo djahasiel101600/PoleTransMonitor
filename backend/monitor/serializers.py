@@ -167,7 +167,7 @@ class ReadingCreateSerializer(serializers.ModelSerializer):
     )
     # Optional: ESP32 supplies a past timestamp when replaying buffered offline readings.
     # Omit for live readings so the backend sets timestamp=now automatically.
-    timestamp = serializers.DateTimeField(required=False, default=None)
+    timestamp = serializers.DateTimeField(required=False)
 
     def validate_timestamp(self, value):
         from django.utils import timezone as tz
