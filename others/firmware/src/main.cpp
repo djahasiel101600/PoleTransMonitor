@@ -27,7 +27,7 @@
 //
 // Supported tokens: {transformer}, {voltage}, {current}, {apparent_power},
 //   {real_power}, {power_factor}, {frequency}, {energy_kwh}, {oil_temp},
-//   {condition}
+//   {condition}, {loading_percent}
 // ---------------------------------------------------------------------------
 struct _SmsCtx
 {
@@ -41,6 +41,7 @@ struct _SmsCtx
   float energyKwh;
   float oilTemp;
   const char *condition;
+  float loadingPercent; // apparent_power / rated_apparent_power_va * 100
 };
 
 static void _fmtFloat(char *buf, size_t len, float v, const char *fmt, float sentinel = -1e9f)
@@ -127,6 +128,10 @@ static bool _renderSmsTemplate(char *out, size_t outLen, const char *tpl,
     else if (strcmp(token, "condition") == 0)
     {
       strncpy(val, ctx.condition && ctx.condition[0] ? ctx.condition : "?", sizeof(val) - 1);
+    }
+    else if (strcmp(token, "loading_percent") == 0)
+    {
+      _fmtFloat(val, sizeof(val), ctx.loadingPercent, "%.1f");
     }
     else
     {
@@ -651,6 +656,7 @@ void loop()
         Serial.printf("[DEBUG] Sending status reply to %s\n", sender);
 #endif
         char statusMsg[320];
+        float _statusRatedVa = configMgr.getRatedApparentPowerVa();
         _SmsCtx statusCtx = {
             .transformerName = configMgr.getTransformerName(),
             .voltage = sensorData.voltage,
@@ -666,6 +672,9 @@ void loop()
                              : NAN,
             .oilTemp = sensorData.oilTemp,
             .condition = condition,
+            .loadingPercent = (!isnan(sensorData.apparentPower) && _statusRatedVa > 0.0f)
+                                  ? (sensorData.apparentPower / _statusRatedVa * 100.0f)
+                                  : NAN,
         };
 
         if (!_renderSmsTemplate(statusMsg, sizeof(statusMsg),
@@ -705,6 +714,7 @@ void loop()
   {
     char msg[320];
     // Build render context from current sensor values.
+    float _alertRatedVa = configMgr.getRatedApparentPowerVa();
     _SmsCtx smsCtx = {
         .transformerName = configMgr.getTransformerName(),
         .voltage = sensorData.voltage,
@@ -720,6 +730,9 @@ void loop()
                          : NAN,
         .oilTemp = sensorData.oilTemp,
         .condition = condition,
+        .loadingPercent = (!isnan(sensorData.apparentPower) && _alertRatedVa > 0.0f)
+                              ? (sensorData.apparentPower / _alertRatedVa * 100.0f)
+                              : NAN,
     };
 
     if (!_renderSmsTemplate(msg, sizeof(msg), configMgr.getSmsAlertTemplate(), smsCtx))

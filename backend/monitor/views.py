@@ -770,7 +770,7 @@ class ReadingViewSet(viewsets.ModelViewSet):
         )
 
     def get_queryset(self):
-        qs = super().get_queryset()
+        qs = super().get_queryset().select_related("transformer")
         since = self.request.query_params.get("since")
         if since:
             try:
@@ -794,18 +794,25 @@ class ReadingViewSet(viewsets.ModelViewSet):
         header = [
             "timestamp", "transformer", "voltage", "current",
             "apparent_power", "real_power", "power_factor",
-            "frequency", "energy_kwh", "condition",
+            "frequency", "energy_kwh", "loading_percent", "condition",
         ]
 
         def row_fn(r):
             offset = r.transformer.energy_kwh_offset if r.transformer else 0
             energy = max((r.energy_kwh or 0) - (offset or 0), 0)
+            try:
+                ap = r.apparent_power
+                rkva = r.transformer.rated_kva if r.transformer else None
+                loading = round(float(ap) / (float(rkva) * 1000.0) * 100.0, 1) \
+                    if (ap is not None and rkva) else ""
+            except Exception:
+                loading = ""
             return [
                 r.timestamp.isoformat() if r.timestamp else "",
                 r.transformer.name if r.transformer else "",
                 r.voltage, r.current, r.apparent_power, r.real_power,
                 r.power_factor, r.frequency,
-                round(energy, 4), r.condition,
+                round(energy, 4), loading, r.condition,
             ]
 
         response = StreamingHttpResponse(

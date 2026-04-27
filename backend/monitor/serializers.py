@@ -120,6 +120,7 @@ class ReadingSerializer(serializers.ModelSerializer):
     # The physical meter keeps its own cumulative kWh, so we return an adjusted
     # value to the dashboard: max(raw_energy_kwh - energy_kwh_offset, 0).
     energy_kwh = serializers.SerializerMethodField()
+    loading_percent = serializers.SerializerMethodField()
 
     class Meta:
         model = Reading
@@ -135,6 +136,7 @@ class ReadingSerializer(serializers.ModelSerializer):
             "frequency",
             "oil_temp",
             "energy_kwh",
+            "loading_percent",
             "condition",
         ]
 
@@ -159,6 +161,19 @@ class ReadingSerializer(serializers.ModelSerializer):
 
         # Keep payload stable and small for websocket/API clients.
         return round(adjusted, 6)
+
+    def get_loading_percent(self, obj):
+        try:
+            ap = obj.apparent_power
+            rated_kva = obj.transformer.rated_kva
+            if ap is None or not rated_kva:
+                return None
+            rated_va = float(rated_kva) * 1000.0
+            if rated_va <= 0:
+                return None
+            return round(float(ap) / rated_va * 100.0, 1)
+        except Exception:
+            return None
 
 
 class ReadingCreateSerializer(serializers.ModelSerializer):

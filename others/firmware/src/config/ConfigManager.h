@@ -29,6 +29,7 @@ public:
   const char *getTransformerName() const { return transformerName_; }
   const char *getSmsAlertTemplate() const { return smsAlertTemplate_; }
   const char *getSmsStatusTemplate() const { return smsStatusTemplate_; }
+  float getRatedApparentPowerVa() const { return profileRatedVa_; }
 
   void setBackendUrl(const char *url);
   void setTransformerId(int id);
