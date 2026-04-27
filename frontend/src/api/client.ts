@@ -10,6 +10,22 @@ export function registerAuthFailureHandler(handler: AuthFailureHandler | null) {
 
 let refreshInFlight: Promise<string | null> | null = null;
 
+/**
+ * Returns true when the JWT is missing or will expire within `bufferSeconds`.
+ * Avoids calling the refresh endpoint when we already have a valid token.
+ */
+export function isTokenExpired(token: string | null, bufferSeconds = 30): boolean {
+  if (!token) return true;
+  try {
+    const payload = JSON.parse(atob(token.split(".")[1]));
+    const exp: number = payload.exp;
+    if (!exp) return true;
+    return Date.now() / 1000 >= exp - bufferSeconds;
+  } catch {
+    return true;
+  }
+}
+
 function emitAccessToken(access: string) {
   window.dispatchEvent(new CustomEvent("poletrans:access-token", { detail: { access } }));
 }

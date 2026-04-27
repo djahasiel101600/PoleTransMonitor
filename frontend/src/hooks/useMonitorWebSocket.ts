@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from "react";
-import { refreshAccessToken } from "../api/client";
+import { refreshAccessToken, isTokenExpired } from "../api/client";
 import type { Reading } from "../types";
 
 /** If no reading arrives within this window, mark the device as stale. */
@@ -49,10 +49,14 @@ export function useMonitorWebSocket(transformerId: number | null, accessToken?: 
     shouldReconnectRef.current = true;
 
     const connect = async () => {
-      // Proactively refresh the access token before embedding it in the WS URL.
-      // This handles the case where the token expired while the socket was down
-      // (e.g. network blip) and authFetch never had a chance to refresh it.
-      await refreshAccessToken();
+      // Proactively refresh the access token before embedding it in the WS URL,
+      // but only when it is actually expired/missing.  Refreshing unconditionally
+      // triggers setAccessToken in AuthContext on every call, which causes this
+      // effect to re-run in an infinite loop.
+      const currentToken = resolveAccessToken();
+      if (isTokenExpired(currentToken)) {
+        await refreshAccessToken();
+      }
 
       const token = resolveAccessToken();
 
