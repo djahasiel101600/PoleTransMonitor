@@ -778,6 +778,13 @@ class ReadingViewSet(viewsets.ModelViewSet):
                 qs = qs.filter(timestamp__gte=dt)
             except (ValueError, TypeError):
                 pass
+        until = self.request.query_params.get("until")
+        if until:
+            try:
+                dt_until = timezone.datetime.fromisoformat(until.replace("Z", "+00:00"))
+                qs = qs.filter(timestamp__lte=dt_until)
+            except (ValueError, TypeError):
+                pass
         return qs
 
     @action(detail=False, methods=["get"], url_path="export_csv")
