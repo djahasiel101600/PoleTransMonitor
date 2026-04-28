@@ -3,6 +3,7 @@
 #include <WiFiClientSecure.h>
 #include <WiFiManager.h>
 #include <HTTPUpdate.h>
+#include <Preferences.h>
 #include <cctype>
 #include <cmath>
 #include <cstring>
@@ -495,27 +496,62 @@ void loop()
       {
         if (strcmp(otaVersion, FIRMWARE_VERSION) != 0)
         {
-          Serial.printf("[OTA] New firmware available: %s (current: %s). Updating...\n",
-                        otaVersion, FIRMWARE_VERSION);
-          // Use WiFiClientSecure so OTA works on both HTTP (LAN) and HTTPS (production).
-          // setInsecure() skips cert verification — acceptable for OTA over TLS since
-          // the binary is authenticated by its own hash checked by the bootloader.
-          WiFiClientSecure wifiClient;
-          wifiClient.setInsecure();
-          t_httpUpdate_return ret = httpUpdate.update(wifiClient, otaUrl);
-          // On HTTP_UPDATE_OK the device reboots automatically.
-          // Only log failures; no reboot needed on NO_UPDATES.
-          if (ret == HTTP_UPDATE_FAILED)
+          // Guard against infinite reboot loop: if we already attempted this exact
+          // version on a previous boot and FIRMWARE_VERSION is still unchanged, the
+          // flashed binary embedded the same version string — skip to avoid looping.
+          Preferences otaPrefs;
+          char lastAttempted[32] = {0};
+          if (otaPrefs.begin("ptm_ota", true))
           {
-            Serial.printf("[OTA] Update failed: %s\n", httpUpdate.getLastErrorString().c_str());
+            String s = otaPrefs.getString("last_ota_ver", "");
+            strncpy(lastAttempted, s.c_str(), sizeof(lastAttempted) - 1);
+            otaPrefs.end();
+          }
+          if (lastAttempted[0] != '\0' && strcmp(lastAttempted, otaVersion) == 0)
+          {
+            // Already attempted this version; firmware version is still the same.
+            // Do not retry until the backend publishes a different version.
+            Serial.printf("[OTA] Skipping %s — already attempted, FIRMWARE_VERSION unchanged (%s).\n",
+                          otaVersion, FIRMWARE_VERSION);
+          }
+          else
+          {
+            Serial.printf("[OTA] New firmware available: %s (current: %s). Updating...\n",
+                          otaVersion, FIRMWARE_VERSION);
+            // Persist the target version BEFORE flashing so we can detect a version
+            // mismatch loop on the next boot (httpUpdate reboots on success).
+            if (otaPrefs.begin("ptm_ota", false))
+            {
+              otaPrefs.putString("last_ota_ver", otaVersion);
+              otaPrefs.end();
+            }
+            // Use WiFiClientSecure so OTA works on both HTTP (LAN) and HTTPS (production).
+            // setInsecure() skips cert verification — acceptable for OTA over TLS since
+            // the binary is authenticated by its own hash checked by the bootloader.
+            WiFiClientSecure wifiClient;
+            wifiClient.setInsecure();
+            t_httpUpdate_return ret = httpUpdate.update(wifiClient, otaUrl);
+            // On HTTP_UPDATE_OK the device reboots automatically.
+            // Only log failures; no reboot needed on NO_UPDATES.
+            if (ret == HTTP_UPDATE_FAILED)
+            {
+              Serial.printf("[OTA] Update failed: %s\n", httpUpdate.getLastErrorString().c_str());
+            }
           }
         }
-#if DEBUG_SERIAL
         else
         {
+          // Versions match — clear any stale loop-guard marker from NVS.
+          Preferences otaPrefs;
+          if (otaPrefs.begin("ptm_ota", false))
+          {
+            otaPrefs.remove("last_ota_ver");
+            otaPrefs.end();
+          }
+#if DEBUG_SERIAL
           Serial.printf("[OTA] Firmware up to date (%s).\n", FIRMWARE_VERSION);
-        }
 #endif
+        }
       }
     }
   }
