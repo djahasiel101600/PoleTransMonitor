@@ -16,5 +16,4 @@ urlpatterns = [
 
 # Serve uploaded firmware binaries in development.
 # In production on Render, configure a persistent disk or cloud storage.
-if settings.DEBUG:
-    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
