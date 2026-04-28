@@ -38,3 +38,7 @@ services:
         sync: false
       - key: CORS_ORIGINS
         sync: false
+    disk:
+      name: poletransmonitor-media
+      mountPath: /var/data
+      sizeGB: 1
