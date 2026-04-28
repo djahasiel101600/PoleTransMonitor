@@ -2,10 +2,12 @@ from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
 from django.contrib.auth.models import User
 from import_export.admin import ExportActionMixin, ImportExportModelAdmin
+from .models import FirmwareRelease
 
 from .models import Alert, Reading, SmsRecipient, Transformer, UserProfile
 from .resources import AlertResource, ReadingResource, SmsRecipientResource, TransformerResource
 
+admin.site.register(FirmwareRelease)
 
 @admin.register(Transformer)
 class TransformerAdmin(ImportExportModelAdmin):

@@ -681,7 +681,7 @@ void loop()
                                 configMgr.getSmsStatusTemplate(), statusCtx))
         {
           // Blank template — use firmware built-in default.
-          char v[12], a[12], va_[12], w[12], pf[12], hz[12], kwh[12], ot[12];
+          char v[12], a[12], va_[12], w[12], pf[12], hz[12], kwh[12], ot[12], lp[12];
           _fmtFloat(v, sizeof(v), sensorData.voltage, "%.1f");
           _fmtFloat(a, sizeof(a), sensorData.current, "%.2f");
           _fmtFloat(va_, sizeof(va_), sensorData.apparentPower, "%.0f");
@@ -690,11 +690,12 @@ void loop()
           _fmtFloat(hz, sizeof(hz), sensorData.frequency, "%.1f");
           _fmtFloat(kwh, sizeof(kwh), statusCtx.energyKwh, "%.2f");
           _fmtFloat(ot, sizeof(ot), sensorData.oilTemp, "%.1f");
+          _fmtFloat(lp, sizeof(lp), statusCtx.loadingPercent, "%.1f");
           snprintf(statusMsg, sizeof(statusMsg),
                    "Voltage: %s V\nCurrent: %s A\nApparent Power: %s VA\n"
                    "Real Power: %s W\nPower Factor: %s\nFrequency: %s Hz\n"
-                   "Energy: %s kWh\nOil Temp: %s C\nStatus: %s",
-                   v, a, va_, w, pf, hz, kwh, ot, condition ? condition : "?");
+                   "Energy: %s kWh\nOil Temp: %s C\nLoading: %s%%\nStatus: %s",
+                   v, a, va_, w, pf, hz, kwh, ot, lp, condition ? condition : "?");
         }
         if (sim7600.sendSms(sender, statusMsg))
         {
