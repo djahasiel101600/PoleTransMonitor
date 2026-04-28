@@ -86,7 +86,7 @@ def _check_energy_rollback(transformer, new_energy_kwh):
     # Unexpected rollback — zero the offset so the UI tracks the new hardware value.
     transformer.energy_kwh_offset = 0.0
     transformer.save(update_fields=["energy_kwh_offset"])
-    Alert.objects.create(
+    rollback_alert = Alert.objects.create(
         transformer=transformer,
         condition="abnormal",
         message=(
@@ -96,6 +96,7 @@ def _check_energy_rollback(transformer, new_energy_kwh):
             "Energy offset has been zeroed to track from the new hardware value."
         ),
     )
+    broadcast_alert(transformer.id, rollback_alert)
 
 
 def _broadcast_payload(payload):
@@ -207,11 +208,31 @@ def _persist_device_reading(transformer, data, now):
             _ws_flush_buffer_if_due(transformer, now)
 
     if condition != "normal":
-        Alert.objects.create(
+        alert = Alert.objects.create(
             transformer=transformer,
             condition=condition,
             message=f"Condition: {condition}",
         )
+        broadcast_alert(transformer.id, alert)
+
+
+def broadcast_alert(transformer_id, alert):
+    """Broadcast a newly created Alert to all dashboard subscribers of this transformer."""
+    channel_layer = get_channel_layer()
+    group_name = f"monitor_{transformer_id}"
+    payload = {
+        "type": "alert_created",
+        "alert": {
+            "id": alert.id,
+            "transformer": transformer_id,
+            "timestamp": alert.timestamp.isoformat() if alert.timestamp else None,
+            "condition": alert.condition,
+            "message": alert.message,
+            "sms_sent": alert.sms_sent,
+            "acknowledged": alert.acknowledged,
+        },
+    }
+    async_to_sync(channel_layer.group_send)(group_name, payload)
 
 
 def broadcast_reading(reading):
@@ -291,6 +312,9 @@ class MonitorConsumer(AsyncJsonWebsocketConsumer):
             await self.channel_layer.group_discard(self.group_name, self.channel_name)
 
     async def reading_update(self, event):
+        await self.send_json(event)
+
+    async def alert_created(self, event):
         await self.send_json(event)
 
 

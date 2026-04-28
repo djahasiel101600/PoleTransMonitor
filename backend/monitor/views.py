@@ -50,7 +50,7 @@ from .serializers import (
     FirmwareReleaseSerializer,
     SmsSettingsSerializer,
 )
-from .consumers import broadcast_live_reading, broadcast_reading, _check_energy_rollback
+from .consumers import broadcast_live_reading, broadcast_reading, broadcast_alert, _check_energy_rollback
 
 
 # ---------------------------------------------------------------------------
@@ -709,12 +709,13 @@ class ReadingViewSet(viewsets.ModelViewSet):
             )
             Transformer.objects.filter(pk=transformer.id).update(last_seen=now)
             if reading.condition != "normal":
-                Alert.objects.create(
+                replay_alert = Alert.objects.create(
                     transformer=transformer,
                     condition=reading.condition,
                     message=f"[Replayed] Condition: {reading.condition}",
                     sms_sent=False,
                 )
+                broadcast_alert(transformer.id, replay_alert)
             return Response(ReadingSerializer(reading).data, status=status.HTTP_201_CREATED)
 
         interval = int(getattr(transformer, "reading_interval_minutes", 0) or 0)
@@ -722,12 +723,13 @@ class ReadingViewSet(viewsets.ModelViewSet):
             reading = serializer.save()
             Transformer.objects.filter(pk=transformer.id).update(last_seen=timezone.now())
             if reading.condition != "normal":
-                Alert.objects.create(
+                live_alert = Alert.objects.create(
                     transformer=transformer,
                     condition=reading.condition,
                     message=f"Condition: {reading.condition}",
                     sms_sent=request.data.get("sms_sent", False),
                 )
+                broadcast_alert(transformer.id, live_alert)
             broadcast_reading(reading)
             return Response(ReadingSerializer(reading).data, status=status.HTTP_201_CREATED)
 
@@ -738,12 +740,13 @@ class ReadingViewSet(viewsets.ModelViewSet):
         Transformer.objects.filter(pk=transformer.id).update(last_seen=now)
 
         if payload_data["condition"] != "normal":
-            Alert.objects.create(
+            interval_alert = Alert.objects.create(
                 transformer=transformer,
                 condition=payload_data["condition"],
                 message=f"Condition: {payload_data['condition']}",
                 sms_sent=request.data.get("sms_sent", False),
             )
+            broadcast_alert(transformer.id, interval_alert)
 
         with transaction.atomic():
             ReadingBuffer.objects.create(
