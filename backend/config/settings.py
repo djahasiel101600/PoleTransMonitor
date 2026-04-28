@@ -124,8 +124,8 @@ USE_TZ = True
 STATIC_URL = "static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
 
-MEDIA_URL = "/var/data/media/"
-MEDIA_ROOT = "/media/"
+MEDIA_URL = "/media/"
+MEDIA_ROOT = "/var/data/media/"
 
 STORAGES = {
     "default": {
