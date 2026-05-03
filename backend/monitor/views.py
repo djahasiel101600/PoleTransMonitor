@@ -5,6 +5,8 @@ import secrets
 import os
 import time
 
+from django.core.cache import cache
+
 from rest_framework import viewsets, filters, status
 from rest_framework.decorators import action
 from rest_framework.pagination import PageNumberPagination
@@ -367,6 +369,8 @@ class SmsSettingsView(APIView):
         if not serializer.is_valid():
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
         serializer.save()
+        # Invalidate cached singleton so the next firmware poll fetches fresh templates.
+        cache.delete("sms_settings_singleton")
         return Response(serializer.data)
 
 
@@ -398,7 +402,9 @@ class TransformerViewSet(viewsets.ModelViewSet):
                 {"detail": "Missing X-Device-Key header."},
                 status=status.HTTP_401_UNAUTHORIZED,
             )
-        transformer = get_object_or_404(Transformer.objects.all(), pk=pk)
+        transformer = get_object_or_404(
+            Transformer.objects.prefetch_related("sms_recipients"), pk=pk
+        )
         server_key = (transformer.device_api_key or "").strip()
         if not server_key:
             return Response(
@@ -478,16 +484,15 @@ class TransformerViewSet(viewsets.ModelViewSet):
         )
         peak_load_kva = None
         energy_24h_kwh = None
-        if recent.exists():
-            agg = recent.aggregate(
-                max_va=Max("apparent_power"),
-                min_energy=Min("energy_kwh"),
-                max_energy=Max("energy_kwh"),
-            )
-            if agg["max_va"] is not None:
-                peak_load_kva = round(agg["max_va"] / 1000, 2)
-            if agg["min_energy"] is not None and agg["max_energy"] is not None:
-                energy_24h_kwh = round(agg["max_energy"] - agg["min_energy"], 2)
+        agg = recent.aggregate(
+            max_va=Max("apparent_power"),
+            min_energy=Min("energy_kwh"),
+            max_energy=Max("energy_kwh"),
+        )
+        if agg["max_va"] is not None:
+            peak_load_kva = round(agg["max_va"] / 1000, 2)
+        if agg["min_energy"] is not None and agg["max_energy"] is not None:
+            energy_24h_kwh = round(agg["max_energy"] - agg["min_energy"], 2)
 
         return Response({
             "current": current,

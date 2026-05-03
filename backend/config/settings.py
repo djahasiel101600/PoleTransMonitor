@@ -11,7 +11,9 @@ load_dotenv(BASE_DIR / ".env")
 
 SECRET_KEY = os.environ.get("SECRET_KEY", "dev-secret-key-change-in-production")
 
-DEBUG = os.environ.get("DEBUG", "True").lower() == "true"
+# Default to False so Render deployments are safe without an explicit env var.
+# Set DEBUG=True in your local .env for development.
+DEBUG = os.environ.get("DEBUG", "False").lower() == "true"
 
 # Render sets RENDER when running on the platform (used for production defaults).
 IS_RENDER = "RENDER" in os.environ
@@ -108,6 +110,36 @@ CHANNEL_LAYERS = {
         },
     }
 }
+
+# ---------------------------------------------------------------------------
+# Cache — reuse the existing Redis instance (DB 1, separate from Channels DB 0)
+# Falls back to a no-op in-memory cache when REDIS_URL is not set (local dev
+# without Redis).
+# ---------------------------------------------------------------------------
+
+_redis_cache_url = os.environ.get("REDIS_URL", "")
+if _redis_cache_url:
+    CACHES = {
+        "default": {
+            "BACKEND": "django.core.cache.backends.redis.RedisCache",
+            "LOCATION": _redis_cache_url,
+            "KEY_PREFIX": "poletrans",
+            "OPTIONS": {
+                "db": "1",
+                # Match the TLS tolerance already applied to CHANNEL_LAYERS.
+                **({
+                    "ssl_cert_reqs": "none",
+                } if str(_redis_cache_url).startswith("rediss://") else {}),
+            },
+            "TIMEOUT": 60,
+        }
+    }
+else:
+    CACHES = {
+        "default": {
+            "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+        }
+    }
 
 AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},

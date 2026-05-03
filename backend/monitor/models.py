@@ -1,6 +1,7 @@
 import secrets
 
 from django.contrib.auth.models import User
+from django.core.cache import cache
 from django.db import models
 from django.db.models.signals import post_save
 from django.dispatch import receiver
@@ -150,12 +151,18 @@ class Reading(models.Model):
 
     class Meta:
         ordering = ["-timestamp"]
-
-    def __str__(self):
-        return f"{self.transformer.name} @ {self.timestamp}"
-
-
-class ReadingBuffer(models.Model):
+        indexes = [
+            # Speeds up: _check_energy_rollback, insights 24h aggregate,
+            # reports queryset, and any filter+order by transformer+timestamp.
+            models.Index(
+                fields=["transformer", "-timestamp"],
+                name="reading_transformer_ts_desc_idx",
+            ),
+            models.Index(
+                fields=["transformer", "timestamp"],
+                name="reading_transformer_ts_asc_idx",
+            ),
+        ]
     """Temporary high-frequency readings used for interval aggregation."""
 
     transformer = models.ForeignKey(
@@ -176,9 +183,14 @@ class ReadingBuffer(models.Model):
 
     class Meta:
         ordering = ["timestamp"]
-
-    def __str__(self):
-        return f"Buffered {self.transformer.name} @ {self.timestamp}"
+        indexes = [
+            # Speeds up _ws_flush_buffer_if_due / _flush_buffer_if_due which
+            # filter by transformer and order/compare by timestamp.
+            models.Index(
+                fields=["transformer", "timestamp"],
+                name="buffer_transformer_ts_idx",
+            ),
+        ]
 
 
 class Alert(models.Model):
@@ -236,8 +248,11 @@ class SmsSettings(models.Model):
 
     @classmethod
     def get_or_create_singleton(cls):
-        obj, _ = cls.objects.get_or_create(pk=1)
-        return obj
+        cached = cache.get("sms_settings_singleton")
+        if cached is None:
+            cached, _ = cls.objects.get_or_create(pk=1)
+            cache.set("sms_settings_singleton", cached, 60)
+        return cached
 
     def __str__(self):
         return "SMS Settings"
