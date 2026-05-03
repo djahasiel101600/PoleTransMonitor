@@ -19,21 +19,21 @@ class Migration(migrations.Migration):
             model_name="reading",
             index=models.Index(
                 fields=["transformer", "-timestamp"],
-                name="reading_transformer_ts_desc_idx",
+                name="reading_xfmr_ts_desc_idx",
             ),
         ),
         migrations.AddIndex(
             model_name="reading",
             index=models.Index(
                 fields=["transformer", "timestamp"],
-                name="reading_transformer_ts_asc_idx",
+                name="reading_xfmr_ts_asc_idx",
             ),
         ),
         migrations.AddIndex(
             model_name="readingbuffer",
             index=models.Index(
                 fields=["transformer", "timestamp"],
-                name="buffer_transformer_ts_idx",
+                name="buffer_xfmr_ts_idx",
             ),
         ),
     ]

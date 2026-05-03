@@ -156,11 +156,11 @@ class Reading(models.Model):
             # reports queryset, and any filter+order by transformer+timestamp.
             models.Index(
                 fields=["transformer", "-timestamp"],
-                name="reading_transformer_ts_desc_idx",
+                name="reading_xfmr_ts_desc_idx",
             ),
             models.Index(
                 fields=["transformer", "timestamp"],
-                name="reading_transformer_ts_asc_idx",
+                name="reading_xfmr_ts_asc_idx",
             ),
         ]
 
@@ -194,7 +194,7 @@ class ReadingBuffer(models.Model):
             # filter by transformer and order/compare by timestamp.
             models.Index(
                 fields=["transformer", "timestamp"],
-                name="buffer_transformer_ts_idx",
+                name="buffer_xfmr_ts_idx",
             ),
         ]
 
