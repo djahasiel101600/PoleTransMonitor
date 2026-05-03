@@ -163,6 +163,12 @@ class Reading(models.Model):
                 name="reading_transformer_ts_asc_idx",
             ),
         ]
+
+    def __str__(self):
+        return f"{self.transformer.name} @ {self.timestamp}"
+
+
+class ReadingBuffer(models.Model):
     """Temporary high-frequency readings used for interval aggregation."""
 
     transformer = models.ForeignKey(
@@ -191,6 +197,9 @@ class Reading(models.Model):
                 name="buffer_transformer_ts_idx",
             ),
         ]
+
+    def __str__(self):
+        return f"Buffered {self.transformer.name} @ {self.timestamp}"
 
 
 class Alert(models.Model):
