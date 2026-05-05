@@ -206,7 +206,7 @@ class ReportsPagination(PageNumberPagination):
     endpoints that omit the param keep returning plain arrays."""
     page_size = 50
     page_size_query_param = "page_size"
-    max_page_size = 200
+    max_page_size = 500
 
     def paginate_queryset(self, queryset, request, view=None):
         if "page" not in request.query_params:
