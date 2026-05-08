@@ -18,7 +18,8 @@ import django_filters
 from django.http import StreamingHttpResponse
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
-from django.db.models import Max, Min
+from django.db.models import Avg, Count, Max, Min
+from django.db.models.functions import ExtractHour, ExtractWeekDay
 from django.db import transaction
 from datetime import timedelta
 
@@ -375,7 +376,7 @@ class SmsSettingsView(APIView):
 
 
 class TransformerViewSet(viewsets.ModelViewSet):
-    queryset = Transformer.objects.all()
+    queryset = Transformer.objects.prefetch_related("sms_recipients").all()
     serializer_class = TransformerSerializer
 
     def get_permissions(self):
@@ -640,6 +641,152 @@ class TransformerViewSet(viewsets.ModelViewSet):
         transformer.save(update_fields=["pending_reboot"])
         return Response({"ok": True})
 
+    @action(detail=True, methods=["get"], url_path="latest-reading")
+    def latest_reading(self, request, pk=None):
+        """Return the single most recent Reading for this transformer, or null.
+
+        Avoids calling GET /api/readings/?transformer=<id> just to read r[0],
+        which serialises the entire table when pagination is not requested.
+        """
+        transformer = self.get_object()
+        reading = (
+            Reading.objects.filter(transformer=transformer)
+            .select_related("transformer")
+            .order_by("-timestamp")
+            .first()
+        )
+        if reading is None:
+            return Response(None)
+        return Response(ReadingSerializer(reading, context={"request": request}).data)
+
+    @action(detail=True, methods=["get"], url_path="load-by-hour")
+    def load_by_hour(self, request, pk=None):
+        """Aggregated load data for the LoadByHourChart component.
+
+        Returns pre-bucketed kVA averages (24 hourly or 7 daily data points)
+        instead of sending thousands of raw readings to the frontend.
+        """
+        transformer = self.get_object()
+        period = request.query_params.get("period", "24h")
+        hours_window = 7 * 24 if period == "7d" else 24
+        since = timezone.now() - timedelta(hours=hours_window)
+
+        qs = (
+            Reading.objects.filter(
+                transformer=transformer,
+                timestamp__gte=since,
+                apparent_power__isnull=False,
+            )
+            .only("timestamp", "apparent_power")
+        )
+
+        if period == "7d":
+            rows = (
+                qs.annotate(day_bucket=ExtractWeekDay("timestamp"))
+                .values("day_bucket")
+                .annotate(load_va=Avg("apparent_power"), count=Count("id"))
+                .order_by("day_bucket")
+            )
+            day_names = {1: "Sun", 2: "Mon", 3: "Tue", 4: "Wed", 5: "Thu", 6: "Fri", 7: "Sat"}
+            day_map = {i: {"loadKva": 0.0, "count": 0} for i in range(1, 8)}
+            for r in rows:
+                day_map[r["day_bucket"]] = {
+                    "loadKva": round((r["load_va"] or 0) / 1000, 3),
+                    "count": r["count"],
+                }
+            data = [{"day": day_names[i], **day_map[i]} for i in range(1, 8)]
+        else:
+            rows = (
+                qs.annotate(hour_bucket=ExtractHour("timestamp"))
+                .values("hour_bucket")
+                .annotate(load_va=Avg("apparent_power"), count=Count("id"))
+                .order_by("hour_bucket")
+            )
+            hour_map = {h: {"loadKva": 0.0, "count": 0} for h in range(24)}
+            for r in rows:
+                hour_map[r["hour_bucket"]] = {
+                    "loadKva": round((r["load_va"] or 0) / 1000, 3),
+                    "count": r["count"],
+                }
+            data = [{"hour": f"{h}:00", **hour_map[h]} for h in range(24)]
+
+        return Response({"period": period, "data": data})
+
+    @action(detail=True, methods=["get"], url_path="load-heatmap")
+    def load_heatmap(self, request, pk=None):
+        """Aggregated 7-day day×hour heatmap for the LoadHeatmap component.
+
+        Returns a 7×24 grid of average kVA values instead of raw readings,
+        reducing response size from thousands of rows to 168 floats.
+        """
+        transformer = self.get_object()
+        since = timezone.now() - timedelta(days=7)
+
+        rows = (
+            Reading.objects.filter(
+                transformer=transformer,
+                timestamp__gte=since,
+                apparent_power__isnull=False,
+            )
+            .only("timestamp", "apparent_power")
+            .annotate(
+                day_of_week=ExtractWeekDay("timestamp"),
+                hour_of_day=ExtractHour("timestamp"),
+            )
+            .values("day_of_week", "hour_of_day")
+            .annotate(load_va=Avg("apparent_power"))
+        )
+
+        # grid[0..6][0..23] — index 0 = Sunday (Django ExtractWeekDay: 1 = Sunday)
+        grid = [[0.0] * 24 for _ in range(7)]
+        for r in rows:
+            day_idx = r["day_of_week"] - 1
+            hour_idx = r["hour_of_day"]
+            if 0 <= day_idx < 7 and 0 <= hour_idx < 24:
+                grid[day_idx][hour_idx] = round((r["load_va"] or 0) / 1000, 3)
+
+        return Response({"grid": grid})
+
+    @action(detail=True, methods=["get"], url_path="condition-distribution")
+    def condition_distribution(self, request, pk=None):
+        """Aggregated condition counts for the ConditionDonut component.
+
+        Returns three severity buckets (normal / warning / critical) derived
+        from the stored condition field instead of sending raw readings to be
+        classified client-side.
+        """
+        transformer = self.get_object()
+        try:
+            hours = min(max(int(request.query_params.get("hours", 24)), 1), 168)
+        except (TypeError, ValueError):
+            hours = 24
+        since = timezone.now() - timedelta(hours=hours)
+
+        _WARNING = {"heavy_load", "heavy_peak_load", "poor_power_quality", "abnormal"}
+        _CRITICAL = {"danger_zone", "overload", "severe_overload", "critical"}
+
+        rows = (
+            Reading.objects.filter(transformer=transformer, timestamp__gte=since)
+            .only("condition")
+            .values("condition")
+            .annotate(count=Count("id"))
+        )
+
+        counts = {"normal": 0, "warning": 0, "critical": 0}
+        total = 0
+        for r in rows:
+            c = r["condition"]
+            n = r["count"]
+            total += n
+            if c in _CRITICAL:
+                counts["critical"] += n
+            elif c in _WARNING:
+                counts["warning"] += n
+            else:
+                counts["normal"] += n
+
+        return Response({"hours": hours, "total": total, "counts": counts})
+
 
 class SmsRecipientViewSet(viewsets.ModelViewSet):
     queryset = SmsRecipient.objects.all().order_by("owner_name", "phone_number")
@@ -666,6 +813,24 @@ class ReadingViewSet(viewsets.ModelViewSet):
             return [AllowAny()]
         # Dashboard reads are authenticated.
         return [IsAuthenticated()]
+
+    def list(self, request, *args, **kwargs):
+        """Override list to cap unpaginated responses at 500 rows.
+
+        Without a ?page= parameter ReportsPagination returns None, which causes
+        DRF to serialise the entire table into a single JSON response.  On a
+        17,000+ row dataset that alone exceeds the 512 MB Render memory limit.
+        Paginated requests (Reports tab sends ?page=1) bypass this cap via the
+        normal pagination path.
+        """
+        queryset = self.filter_queryset(self.get_queryset())
+        page = self.paginate_queryset(queryset)
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+        queryset = queryset[:500]
+        serializer = self.get_serializer(queryset, many=True)
+        return Response(serializer.data)
 
     def create(self, request, *args, **kwargs):
         serializer = ReadingCreateSerializer(data=request.data)
@@ -843,6 +1008,17 @@ class AlertViewSet(viewsets.ModelViewSet):
     def get_permissions(self):
         # Dashboard alert viewing/ack requires authentication.
         return [IsAuthenticated()]
+
+    def list(self, request, *args, **kwargs):
+        """Cap unpaginated alert responses at 200 rows to prevent unbounded memory use."""
+        queryset = self.filter_queryset(self.get_queryset())
+        page = self.paginate_queryset(queryset)
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+        queryset = queryset[:200]
+        serializer = self.get_serializer(queryset, many=True)
+        return Response(serializer.data)
 
     @action(detail=True, methods=["patch"])
     def acknowledge(self, request, pk=None):

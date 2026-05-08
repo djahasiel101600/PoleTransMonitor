@@ -5,6 +5,7 @@ from urllib.parse import unquote
 from asgiref.sync import async_to_sync, sync_to_async
 from channels.layers import get_channel_layer
 from channels.generic.websocket import AsyncJsonWebsocketConsumer
+from django.core.cache import cache
 from django.db import transaction
 from django.utils import timezone
 from .models import Alert, Reading, ReadingBuffer, Transformer
@@ -60,12 +61,20 @@ def _check_energy_rollback(transformer, new_energy_kwh):
     except (TypeError, ValueError):
         return
 
-    last_energy = (
-        Reading.objects.filter(transformer=transformer, energy_kwh__isnull=False)
-        .order_by("-timestamp")
-        .values_list("energy_kwh", flat=True)
-        .first()
-    )
+    # Cache the last energy value to avoid a DB query on every reading ingest.
+    # At 12 readings/min per device this saves ~12 DB round-trips per minute.
+    # 60 s TTL is short enough to catch real rollbacks; on cache miss we re-query.
+    _cache_key = f"last_energy_{transformer.pk}"
+    last_energy = cache.get(_cache_key)
+    if last_energy is None:
+        last_energy = (
+            Reading.objects.filter(transformer=transformer, energy_kwh__isnull=False)
+            .order_by("-timestamp")
+            .values_list("energy_kwh", flat=True)
+            .first()
+        )
+        if last_energy is not None:
+            cache.set(_cache_key, last_energy, 60)
     if last_energy is None:
         return  # No history yet; nothing to compare against.
 
@@ -86,6 +95,7 @@ def _check_energy_rollback(transformer, new_energy_kwh):
     # Unexpected rollback — zero the offset so the UI tracks the new hardware value.
     transformer.energy_kwh_offset = 0.0
     transformer.save(update_fields=["energy_kwh_offset"])
+    cache.delete(_cache_key)  # Invalidate so the next reading re-queries the DB
     rollback_alert = Alert.objects.create(
         transformer=transformer,
         condition="abnormal",

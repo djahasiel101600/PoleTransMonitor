@@ -1,2 +1,2 @@
-web: daphne -b 0.0.0.0 -p $PORT --ping-interval 20 --ping-timeout 30 --application-close-timeout 10 config.asgi:application
+web: daphne -b 0.0.0.0 -p $PORT --ping-interval 20 --ping-timeout 30 --application-close-timeout 10 --threads 1 config.asgi:application
 release: python manage.py migrate --noinput

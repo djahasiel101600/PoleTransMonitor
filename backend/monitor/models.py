@@ -214,6 +214,12 @@ class Alert(models.Model):
 
     class Meta:
         ordering = ["-timestamp"]
+        indexes = [
+            models.Index(
+                fields=["transformer", "-timestamp"],
+                name="alert_xfmr_ts_desc_idx",
+            ),
+        ]
 
     def __str__(self):
         return f"{self.transformer.name} - {self.condition} @ {self.timestamp}"

@@ -42,6 +42,7 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
+    "django.middleware.gzip.GZipMiddleware",
     "django.middleware.security.SecurityMiddleware",
     "whitenoise.middleware.WhiteNoiseMiddleware",
     "corsheaders.middleware.CorsMiddleware",
@@ -89,7 +90,7 @@ if not _database_url:
 DATABASES = {
     "default": dj_database_url.parse(
         _database_url,
-        conn_max_age=600,
+        conn_max_age=60,
         conn_health_checks=True,
     )
 }
@@ -147,6 +148,9 @@ AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "django.contrib.auth.password_validation.CommonPasswordValidator"},
     {"NAME": "django.contrib.auth.password_validation.NumericPasswordValidator"},
 ]
+
+# Limit upload body size to 1 MB to prevent memory-exhaustion from oversized requests.
+DATA_UPLOAD_MAX_MEMORY_SIZE = 1_048_576
 
 LANGUAGE_CODE = "en-us"
 TIME_ZONE = "UTC"
