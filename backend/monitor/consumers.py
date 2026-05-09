@@ -222,6 +222,14 @@ def _persist_device_reading(transformer, data, now):
             transformer=transformer,
             condition=condition,
             message=f"Condition: {condition}",
+            voltage=data.get("voltage"),
+            current=data.get("current"),
+            apparent_power=data.get("apparent_power"),
+            real_power=data.get("real_power"),
+            power_factor=data.get("power_factor"),
+            frequency=data.get("frequency"),
+            oil_temp=data.get("oil_temp"),
+            energy_kwh=data.get("energy_kwh"),
         )
         broadcast_alert(transformer.id, alert)
 
@@ -240,6 +248,14 @@ def broadcast_alert(transformer_id, alert):
             "message": alert.message,
             "sms_sent": alert.sms_sent,
             "acknowledged": alert.acknowledged,
+            "voltage": alert.voltage,
+            "current": alert.current,
+            "apparent_power": alert.apparent_power,
+            "real_power": alert.real_power,
+            "power_factor": alert.power_factor,
+            "frequency": alert.frequency,
+            "oil_temp": alert.oil_temp,
+            "energy_kwh": alert.energy_kwh,
         },
     }
     async_to_sync(channel_layer.group_send)(group_name, payload)

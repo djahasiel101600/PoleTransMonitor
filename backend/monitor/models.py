@@ -211,6 +211,17 @@ class Alert(models.Model):
     message = models.TextField()
     sms_sent = models.BooleanField(default=False)
     acknowledged = models.BooleanField(default=False)
+    # Electrical snapshot captured at the moment the alert was raised.
+    # All nullable so that system-generated alerts (e.g. energy rollback)
+    # that have no associated sensor reading can still be stored.
+    voltage = models.FloatField(null=True, blank=True)
+    current = models.FloatField(null=True, blank=True)
+    apparent_power = models.FloatField(null=True, blank=True)
+    real_power = models.FloatField(null=True, blank=True)
+    power_factor = models.FloatField(null=True, blank=True)
+    frequency = models.FloatField(null=True, blank=True)
+    oil_temp = models.FloatField(null=True, blank=True)
+    energy_kwh = models.FloatField(null=True, blank=True)
 
     class Meta:
         ordering = ["-timestamp"]

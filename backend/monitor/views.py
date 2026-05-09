@@ -381,7 +381,7 @@ class TransformerViewSet(viewsets.ModelViewSet):
 
     def get_permissions(self):
         # The ESP32 device posts readings; we only want admins/staff to manage transformers.
-        if self.action in ["device_config", "ack_energy_reset", "ack_portal_open", "ack_reboot"]:
+        if self.action in ["device_config", "ack_energy_reset", "ack_portal_open", "ack_reboot", "sms_ack"]:
             return [AllowAny()]
         if self.action in ["create", "update", "partial_update", "destroy", "reset", "reboot"]:
             return [IsAuthenticated(), IsAdminUser()]
@@ -641,6 +641,60 @@ class TransformerViewSet(viewsets.ModelViewSet):
         transformer.save(update_fields=["pending_reboot"])
         return Response({"ok": True})
 
+    @action(detail=True, methods=["post"], url_path="sms_ack")
+    def sms_ack(self, request, pk=None):
+        """
+        Called by firmware immediately after successfully sending an SMS alert.
+        Authenticated by X-Device-Key header (same as ack_energy_reset).
+        Body: {"condition": "<condition_string>"}
+
+        Marks the most recent matching Alert as sms_sent=True so the dashboard
+        reflects the real delivery status instead of always showing False.
+        """
+        client_key = (
+            request.headers.get("X-Device-Key")
+            or request.headers.get("X-Device-Token")
+            or ""
+        ).strip()
+        if not client_key:
+            return Response(
+                {"detail": "Missing X-Device-Key header."},
+                status=status.HTTP_401_UNAUTHORIZED,
+            )
+        transformer = get_object_or_404(Transformer.objects.all(), pk=pk)
+        server_key = (transformer.device_api_key or "").strip()
+        if not server_key or not secrets.compare_digest(client_key, server_key):
+            return Response(
+                {"detail": "Invalid device key."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        condition = (request.data.get("condition") or "").strip()
+        if not condition:
+            return Response(
+                {"detail": "condition is required."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        # Find the most recent alert for this (transformer, condition) pair within
+        # the last 10 minutes that has not yet been marked as sent.
+        window = timezone.now() - timedelta(minutes=10)
+        alert = (
+            Alert.objects.filter(
+                transformer=transformer,
+                condition=condition,
+                sms_sent=False,
+                timestamp__gte=window,
+            )
+            .order_by("-timestamp")
+            .first()
+        )
+        if alert is None:
+            # Nothing to update — already marked or window expired.
+            return Response({"ok": True, "updated": False})
+        alert.sms_sent = True
+        alert.save(update_fields=["sms_sent"])
+        broadcast_alert(transformer.id, alert)
+        return Response({"ok": True, "updated": True})
+
     @action(detail=True, methods=["get"], url_path="latest-reading")
     def latest_reading(self, request, pk=None):
         """Return the single most recent Reading for this transformer, or null.
@@ -884,6 +938,14 @@ class ReadingViewSet(viewsets.ModelViewSet):
                     condition=reading.condition,
                     message=f"[Replayed] Condition: {reading.condition}",
                     sms_sent=False,
+                    voltage=payload_data.get("voltage"),
+                    current=payload_data.get("current"),
+                    apparent_power=payload_data.get("apparent_power"),
+                    real_power=payload_data.get("real_power"),
+                    power_factor=payload_data.get("power_factor"),
+                    frequency=payload_data.get("frequency"),
+                    oil_temp=payload_data.get("oil_temp"),
+                    energy_kwh=payload_data.get("energy_kwh"),
                 )
                 broadcast_alert(transformer.id, replay_alert)
             return Response(ReadingSerializer(reading).data, status=status.HTTP_201_CREATED)
@@ -898,6 +960,14 @@ class ReadingViewSet(viewsets.ModelViewSet):
                     condition=reading.condition,
                     message=f"Condition: {reading.condition}",
                     sms_sent=request.data.get("sms_sent", False),
+                    voltage=payload_data.get("voltage"),
+                    current=payload_data.get("current"),
+                    apparent_power=payload_data.get("apparent_power"),
+                    real_power=payload_data.get("real_power"),
+                    power_factor=payload_data.get("power_factor"),
+                    frequency=payload_data.get("frequency"),
+                    oil_temp=payload_data.get("oil_temp"),
+                    energy_kwh=payload_data.get("energy_kwh"),
                 )
                 broadcast_alert(transformer.id, live_alert)
             broadcast_reading(reading)
@@ -915,6 +985,14 @@ class ReadingViewSet(viewsets.ModelViewSet):
                 condition=payload_data["condition"],
                 message=f"Condition: {payload_data['condition']}",
                 sms_sent=request.data.get("sms_sent", False),
+                voltage=payload_data.get("voltage"),
+                current=payload_data.get("current"),
+                apparent_power=payload_data.get("apparent_power"),
+                real_power=payload_data.get("real_power"),
+                power_factor=payload_data.get("power_factor"),
+                frequency=payload_data.get("frequency"),
+                oil_temp=payload_data.get("oil_temp"),
+                energy_kwh=payload_data.get("energy_kwh"),
             )
             broadcast_alert(transformer.id, interval_alert)
 
@@ -1045,8 +1123,11 @@ class AlertViewSet(viewsets.ModelViewSet):
         """Stream filtered alerts as a CSV download."""
         qs = self.filter_queryset(self.get_queryset())[:CSV_EXPORT_MAX_ROWS]
         header = [
-            "timestamp", "transformer", "condition",
-            "message", "sms_sent", "acknowledged",
+            "timestamp", "transformer", "condition", "message",
+            "sms_sent", "acknowledged",
+            "voltage_v", "current_a", "apparent_power_va",
+            "real_power_w", "power_factor", "frequency_hz",
+            "oil_temp_c", "energy_kwh",
         ]
 
         def row_fn(a):
@@ -1054,6 +1135,9 @@ class AlertViewSet(viewsets.ModelViewSet):
                 a.timestamp.isoformat() if a.timestamp else "",
                 a.transformer.name if a.transformer else "",
                 a.condition, a.message, a.sms_sent, a.acknowledged,
+                a.voltage, a.current, a.apparent_power,
+                a.real_power, a.power_factor, a.frequency,
+                a.oil_temp, a.energy_kwh,
             ]
 
         response = StreamingHttpResponse(

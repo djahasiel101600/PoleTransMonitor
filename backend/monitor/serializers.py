@@ -227,6 +227,14 @@ class AlertSerializer(serializers.ModelSerializer):
             "message",
             "sms_sent",
             "acknowledged",
+            "voltage",
+            "current",
+            "apparent_power",
+            "real_power",
+            "power_factor",
+            "frequency",
+            "oil_temp",
+            "energy_kwh",
         ]
 
 
